@@ -38,6 +38,9 @@
 #     --session-record-file File used to persist detailed session history
 #     --template     Prompt template path
 #     --dry-run      Simulate without API calls (default: false)
+#
+# Note: Output directory is auto-generated from model, level, and harness:
+#   WORKSPACE/{HARNESS}-{MODEL_SLUG}/{LEVEL}
 ################################################################################
 
 set -e
@@ -61,6 +64,7 @@ resolve_harness_cli() {
     opencode)
       if command -v opencode &> /dev/null; then
         echo "opencode"
+        return 0
       fi
       ;;
     pi)
@@ -214,7 +218,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Validate required parameters
-if [ -z "$MODEL" ] || [ -z "$LEVEL" ] || [ -z "$BACKEND" ] || [ -z "$FRONTEND" ] || [ -z "$OUTPUT_DIR" ]; then
+if [ -z "$MODEL" ] || [ -z "$LEVEL" ] || [ -z "$BACKEND" ] || [ -z "$FRONTEND" ]; then
   echo -e "${RED}❌ ERROR: Missing required parameters${NC}"
   echo ""
   echo "Required:"
@@ -222,7 +226,6 @@ if [ -z "$MODEL" ] || [ -z "$LEVEL" ] || [ -z "$BACKEND" ] || [ -z "$FRONTEND" ]
   echo "  --level <level>         (overview, detailed)"
   echo "  --backend <backend>     (node-js, spring-boot, quarkus)"
   echo "  --frontend <frontend>   (react, angular)"
-  echo "  --output-dir <dir>      (where to save generated project)"
   echo ""
   echo "Optional:"
   echo "  --harness <harness>     (default: opencode)"
@@ -244,6 +247,15 @@ if [ "$LEVEL" != "overview" ] && [ "$LEVEL" != "detailed" ]; then
   echo "Valid options: overview, detailed"
   exit 1
 fi
+
+# Auto-generate output directory if not provided
+if [ -z "$OUTPUT_DIR" ]; then
+  # Create model slug: GLM-5.1Z.AI -> glm-5.1, kimi/2.6 -> kimi-2.6
+  MODEL_SLUG=$(echo "$MODEL" | tr '[:upper:]' '[:lower:]' | sed 's/z\.ai$//' | sed 's/\.ai$//' | sed 's/[^a-z0-9.-]/-/g')
+  OUTPUT_DIR="WORKSPACE/${HARNESS}-${MODEL_SLUG}/${LEVEL}"
+fi
+
+mkdir -p "$OUTPUT_DIR"
 
 # Determine specification file if not provided
 if [ -z "$SPEC_FILE" ]; then
@@ -419,7 +431,6 @@ SESSION_EXPORT_FILE="$(mktemp "${TMPDIR:-/tmp}/benchmark-ai-session.XXXXXX")"
 cleanup_temp_files() {
   rm -f "$RENDERED_PROMPT" "$SESSION_EXPORT_FILE"
 }
-trap cleanup_temp_files EXIT
 node - "$TEMPLATE_FILE" "$SPEC_FILE" "$BACKEND_CARTRIDGE" "$FRONTEND_CARTRIDGE" "$LEVEL" "$BACKEND" "$FRONTEND" "$RENDERED_PROMPT" <<'NODE'
 const fs = require("fs");
 const [
@@ -463,8 +474,10 @@ build_gen_cmd() {
       if [ ! -z "$SESSION_ID" ]; then
         GEN_CMD+=(--session "$SESSION_ID")
       fi
+      # Add the prompt message as the final positional argument
       GEN_CMD+=("$GEN_PROMPT")
       ;;
+
     pi)
       GEN_CMD=("$HARNESS_CLI" --provider "$HARNESS_PROVIDER" --model "$HARNESS_MODEL_ID" --no-context-files -p "@$RENDERED_PROMPT")
       ;;
@@ -671,24 +684,99 @@ fs.writeFileSync(recordFile, JSON.stringify(record, null, 2));
 NODE
 }
 
-run_generation_attempt() {
-  "${GEN_CMD[@]}" &
-  local cmd_pid=$!
-  local elapsed=0
+# Global for subprocess management and cleanup
+ACTIVE_GEN_PID=""
+
+cleanup_gen_process() {
+  if [ ! -z "$ACTIVE_GEN_PID" ] && kill -0 "$ACTIVE_GEN_PID" 2>/dev/null; then
+    echo -e "${YELLOW}Terminating generation process (PID: $ACTIVE_GEN_PID)${NC}"
+    kill -TERM "$ACTIVE_GEN_PID" 2>/dev/null || true
+    sleep 1
+    if kill -0 "$ACTIVE_GEN_PID" 2>/dev/null; then
+      echo -e "${YELLOW}Force killing process (SIGKILL)${NC}"
+      kill -KILL "$ACTIVE_GEN_PID" 2>/dev/null || true
+    fi
+    wait "$ACTIVE_GEN_PID" 2>/dev/null || true
+  fi
+}
+
+cleanup_all() {
+  cleanup_gen_process
+  cleanup_temp_files
+}
+
+trap cleanup_all EXIT INT TERM
+
+# Harness abstraction: Monitor process with activity detection
+# Detects when harness is stuck (no file changes for inactivity_threshold seconds)
+# vs slow (still creating files). Only terminates on actual inactivity.
+monitor_process_with_activity() {
+  local cmd_pid="$1"
+  local output_dir="$2"
+  local max_timeout="$3"
+  local inactivity_threshold="$4"
+
+  local elapsed_total=0
+  local elapsed_since_activity=0
+  local last_file_count=0
 
   while kill -0 "$cmd_pid" 2>/dev/null; do
-    if [ "$elapsed" -ge "$TIMEOUT" ]; then
-      echo -e "${RED}Generation attempt timed out after ${TIMEOUT}s${NC}"
-      kill "$cmd_pid" 2>/dev/null || true
+    local current_file_count=$(find "$output_dir" -type f 2>/dev/null | wc -l)
+
+    if [ "$current_file_count" -gt "$last_file_count" ]; then
+      last_file_count="$current_file_count"
+      elapsed_since_activity=0
+      if [ "$elapsed_total" -gt 10 ]; then
+        echo -e "${BLUE}  → Activity detected (${current_file_count} files)${NC}"
+      fi
+    else
+      elapsed_since_activity=$((elapsed_since_activity + 1))
+    fi
+
+    elapsed_total=$((elapsed_total + 1))
+
+    if [ "$elapsed_since_activity" -ge "$inactivity_threshold" ]; then
+      echo -e "${RED}❌ No file activity for ${inactivity_threshold}s - terminating${NC}"
+      kill -TERM "$cmd_pid" 2>/dev/null || true
+      sleep 1
+      kill -KILL "$cmd_pid" 2>/dev/null || true
+      wait "$cmd_pid" 2>/dev/null || true
+      return 124
+    fi
+
+    if [ "$elapsed_total" -ge "$max_timeout" ]; then
+      echo -e "${RED}❌ Generation exceeded max timeout of ${max_timeout}s${NC}"
+      kill -TERM "$cmd_pid" 2>/dev/null || true
+      sleep 1
+      kill -KILL "$cmd_pid" 2>/dev/null || true
       wait "$cmd_pid" 2>/dev/null || true
       return 124
     fi
 
     sleep 1
-    elapsed=$((elapsed + 1))
   done
 
   wait "$cmd_pid"
+}
+
+run_generation_attempt() {
+  # PI requires running from the output directory since it doesn't have a --dir flag
+  if [ "$HARNESS" == "pi" ]; then
+    (cd "$OUTPUT_DIR" && "${GEN_CMD[@]}") &
+  else
+    "${GEN_CMD[@]}" &
+  fi
+
+  ACTIVE_GEN_PID=$!
+
+  # Monitor with activity detection:
+  # - inactivity_threshold: 30s = if no files created for 30s, assume stuck
+  # - max_timeout: TIMEOUT variable (default 120s) = hard limit even with activity
+  monitor_process_with_activity "$ACTIVE_GEN_PID" "$OUTPUT_DIR" "$TIMEOUT" 30
+
+  local exit_code=$?
+  ACTIVE_GEN_PID=""
+  return $exit_code
 }
 
 build_gen_cmd
