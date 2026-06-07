@@ -29,7 +29,8 @@
 #   Optional:
 #     --harness      Generation harness (default: opencode; valid: opencode, pi, or custom)
 #     --provider     Model provider namespace (default: z-ai)
-#     --timeout      Generation timeout in seconds (default: 120)
+#     --timeout      Generation timeout in seconds (default: 300)
+#                    Full-stack projects: OpenCode ~10-15m, PI ~4-5m (overview level)
 #     --spec-file    Custom specification file path
 #     --auto-approve Auto-approve harness permissions (default: true)
 #     --retries      Generation attempts before failing (default: 3)
@@ -127,7 +128,7 @@ map_harness_model() {
 # Defaults
 HARNESS="opencode"
 PROVIDER="z-ai"
-TIMEOUT="120"
+TIMEOUT="300"
 AUTO_APPROVE="true"
 RETRIES="3"
 SESSION_ID=""
@@ -230,7 +231,7 @@ if [ -z "$MODEL" ] || [ -z "$LEVEL" ] || [ -z "$BACKEND" ] || [ -z "$FRONTEND" ]
   echo "Optional:"
   echo "  --harness <harness>     (default: opencode)"
   echo "  --provider <provider>   (default: z-ai)"
-  echo "  --timeout <seconds>     (default: 120)"
+  echo "  --timeout <seconds>     (default: 300, min: 240 for full-stack)"
   echo "  --spec-file <path>      (custom spec file)"
   echo "  --auto-approve true|false (default: true)"
   echo "  --retries <count>       (default: 3)"
@@ -770,9 +771,9 @@ run_generation_attempt() {
   ACTIVE_GEN_PID=$!
 
   # Monitor with activity detection:
-  # - inactivity_threshold: 30s = if no files created for 30s, assume stuck
+  # - inactivity_threshold: 90s = if no files created for 90s, assume stuck (allows finalization)
   # - max_timeout: TIMEOUT variable (default 120s) = hard limit even with activity
-  monitor_process_with_activity "$ACTIVE_GEN_PID" "$OUTPUT_DIR" "$TIMEOUT" 30
+  monitor_process_with_activity "$ACTIVE_GEN_PID" "$OUTPUT_DIR" "$TIMEOUT" 90
 
   local exit_code=$?
   ACTIVE_GEN_PID=""
