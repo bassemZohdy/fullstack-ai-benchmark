@@ -1,0 +1,290 @@
+#!/bin/bash
+
+################################################################################
+# Benchmark Orchestrator Script
+#
+# Orchestrates project generation and evaluation
+# Uses generic generate-project.sh and eval-generated-project.sh scripts
+#
+# Usage:
+#   # Single test with all required selectors
+#   ./scripts/run-benchmark.sh \
+#     --model kimi/2.6 \
+#     --level overview \
+#     --backend spring-boot \
+#     --frontend react
+#
+#   # GLM workflow validation
+#   ./scripts/run-benchmark.sh \
+#     --model GLM-5.1Z.AI \
+#     --level overview \
+#     --backend spring-boot \
+#     --frontend angular \
+#     --provider z-ai
+#
+# Parameters:
+#   Required:
+#     --model         Model id to use
+#     --level         Specification level (overview, detailed)
+#     --backend       Backend framework (node-js, spring-boot, quarkus)
+#     --frontend      Frontend framework (react, angular)
+#
+#   Optional:
+#     --harness       Harness to use (default: opencode)
+#     --provider      Model provider namespace (default: z-ai)
+#     --auto-approve  Auto-approve OpenCode permissions (default: true)
+#     --retries       Generation attempts before failing (default: 3)
+#     --timeout       Generation timeout (default: 120)
+#     --skip-gen      Skip generation, only evaluate
+#     --skip-eval     Skip evaluation, only generate
+#     --quiet         Suppress detailed output
+################################################################################
+
+set -e
+
+# Script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Color codes
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+MAGENTA='\033[0;35m'
+NC='\033[0m'
+
+# Defaults
+MODEL_FILTER=""
+LEVEL_FILTER=""
+BACKEND_FILTER=""
+FRONTEND_FILTER=""
+HARNESS="opencode"
+PROVIDER="z-ai"
+AUTO_APPROVE="true"
+RETRIES="3"
+SKIP_GEN="false"
+SKIP_EVAL="false"
+TIMEOUT="120"
+QUIET="false"
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --model)
+      MODEL_FILTER="$2"
+      shift 2
+      ;;
+    --level)
+      LEVEL_FILTER="$2"
+      shift 2
+      ;;
+    --backend)
+      BACKEND_FILTER="$2"
+      shift 2
+      ;;
+    --frontend)
+      FRONTEND_FILTER="$2"
+      shift 2
+      ;;
+    --harness)
+      HARNESS="$2"
+      shift 2
+      ;;
+    --provider)
+      PROVIDER="$2"
+      shift 2
+      ;;
+    --auto-approve)
+      AUTO_APPROVE="$2"
+      shift 2
+      ;;
+    --retries)
+      RETRIES="$2"
+      shift 2
+      ;;
+    --skip-gen)
+      SKIP_GEN="true"
+      shift
+      ;;
+    --skip-eval)
+      SKIP_EVAL="true"
+      shift
+      ;;
+    --timeout)
+      TIMEOUT="$2"
+      shift 2
+      ;;
+    --quiet)
+      QUIET="$2"
+      shift 2
+      ;;
+    *)
+      echo -e "${RED}Unknown option: $1${NC}"
+      exit 1
+      ;;
+  esac
+done
+
+if [ ! -z "$LEVEL_FILTER" ] && [ "$LEVEL_FILTER" != "overview" ] && [ "$LEVEL_FILTER" != "detailed" ]; then
+  echo -e "${RED}❌ ERROR: Invalid level: $LEVEL_FILTER${NC}"
+  echo "Valid options: overview, detailed"
+  exit 1
+fi
+
+# Validate required selectors
+if [ -z "$MODEL_FILTER" ] || [ -z "$LEVEL_FILTER" ] || [ -z "$BACKEND_FILTER" ] || [ -z "$FRONTEND_FILTER" ]; then
+  echo -e "${RED}❌ ERROR: All four selectors are required${NC}"
+  echo "Usage: $0 --model <model> --level <level> --backend <backend> --frontend <frontend> [OPTIONS]"
+  exit 1
+fi
+
+# Build single test case from selectors
+TEST_CASE="${MODEL_FILTER}:${LEVEL_FILTER}:${BACKEND_FILTER}:${FRONTEND_FILTER}:${MODEL_FILTER} - ${LEVEL_FILTER} (${BACKEND_FILTER}+${FRONTEND_FILTER})"
+FILTERED_TESTS=("$TEST_CASE")
+TOTAL_TESTS=1
+
+slugify_model() {
+  local model="$1"
+  local model_slug
+  model_slug="$(echo "$model" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's|^glm-([0-9.]+)z\.ai$|glm-\1|; s|/|-|g; s|[^a-z0-9._-]+|-|g; s|-+|-|g; s|^-||; s|-$||')"
+  echo "${HARNESS}-${model_slug}"
+}
+
+# Print header
+if [ "$QUIET" != "true" ]; then
+  echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
+  echo -e "${MAGENTA}Benchmark Test Runner${NC}"
+  echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
+  echo ""
+  echo -e "Model:          ${YELLOW}${MODEL_FILTER}${NC}"
+  echo -e "Level:          ${YELLOW}${LEVEL_FILTER}${NC}"
+  echo -e "Backend:        ${YELLOW}${BACKEND_FILTER}${NC}"
+  echo -e "Frontend:       ${YELLOW}${FRONTEND_FILTER}${NC}"
+  echo -e "Harness:        ${YELLOW}${HARNESS}${NC}"
+  echo -e "Provider:       ${YELLOW}${PROVIDER}${NC}"
+  echo -e "Auto Approve:   ${YELLOW}${AUTO_APPROVE}${NC}"
+  echo -e "Retries:        ${YELLOW}${RETRIES}${NC}"
+  echo -e "Skip Gen:       ${YELLOW}${SKIP_GEN}${NC}"
+  echo -e "Skip Eval:      ${YELLOW}${SKIP_EVAL}${NC}"
+  echo ""
+fi
+
+# Run tests
+TEST_NUM=0
+PASSED=0
+FAILED=0
+
+for test_case in "${FILTERED_TESTS[@]}"; do
+  IFS=':' read -r model level backend frontend desc <<< "$test_case"
+  TEST_NUM=$((TEST_NUM + 1))
+
+  if [ "$QUIET" != "true" ]; then
+    echo -e "${BLUE}───────────────────────────────────────────────────────────${NC}"
+    echo -e "Test ${TEST_NUM}/${TOTAL_TESTS}: ${YELLOW}${desc}${NC}"
+    echo -e "${BLUE}───────────────────────────────────────────────────────────${NC}"
+  fi
+
+  # Determine paths. Workspace keeps one active project per model and level.
+  MODEL_SLUG="$(slugify_model "$model")"
+  WORKSPACE_DIR="WORKSPACE/${MODEL_SLUG}/${level}"
+  RESULTS_DIR="RESULTS/${MODEL_SLUG}/${backend}-${frontend}/${level}/"
+  SESSION_FILE="${WORKSPACE_DIR}/.opencode-session-id"
+
+  # Generation phase
+  if [ "$SKIP_GEN" != "true" ]; then
+    if [ "$QUIET" != "true" ]; then
+      echo -e "${BLUE}→ Generating project...${NC}"
+    fi
+
+    if "$SCRIPT_DIR/generate-project.sh" \
+      --model "$model" \
+      --level "$level" \
+      --backend "$backend" \
+      --frontend "$frontend" \
+      --output-dir "$WORKSPACE_DIR" \
+      --harness "$HARNESS" \
+      --provider "$PROVIDER" \
+      --auto-approve "$AUTO_APPROVE" \
+      --retries "$RETRIES" \
+      --session-file "$SESSION_FILE" \
+      --timeout "$TIMEOUT"; then
+      if [ "$QUIET" != "true" ]; then
+        echo -e "${GREEN}✅ Generation completed${NC}"
+      fi
+    else
+      if [ "$QUIET" != "true" ]; then
+        echo -e "${RED}❌ Generation failed${NC}"
+      fi
+      FAILED=$((FAILED + 1))
+      continue
+    fi
+  fi
+
+  # Evaluation phase
+  if [ "$SKIP_EVAL" != "true" ]; then
+    if [ "$QUIET" != "true" ]; then
+      echo -e "${BLUE}→ Evaluating project...${NC}"
+    fi
+
+    if "$SCRIPT_DIR/eval-generated-project.sh" \
+      --generated-dir "$WORKSPACE_DIR" \
+      --results-dir "$RESULTS_DIR" \
+      --model "$model" \
+      --provider "$PROVIDER" \
+      --harness "$HARNESS" \
+      --level "$level" \
+      --backend "$backend" \
+      --frontend "$frontend"; then
+      if [ "$QUIET" != "true" ]; then
+        echo -e "${GREEN}✅ Evaluation completed${NC}"
+      fi
+      PASSED=$((PASSED + 1))
+    else
+      if [ "$QUIET" != "true" ]; then
+        echo -e "${RED}❌ Evaluation failed${NC}"
+      fi
+      FAILED=$((FAILED + 1))
+    fi
+  else
+    PASSED=$((PASSED + 1))
+  fi
+
+  if [ "$QUIET" != "true" ]; then
+    echo ""
+  fi
+done
+
+# Print summary
+if [ "$QUIET" != "true" ]; then
+  echo ""
+  echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
+  echo -e "${MAGENTA}Benchmark Summary${NC}"
+  echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
+  echo ""
+  echo -e "Total Tests:     ${YELLOW}${TOTAL_TESTS}${NC}"
+  echo -e "Passed:          ${GREEN}${PASSED}${NC}"
+  echo -e "Failed:          $([ $FAILED -eq 0 ] && echo -e "${GREEN}" || echo -e "${RED}")${FAILED}${NC}"
+  echo ""
+
+  if [ $FAILED -eq 0 ] && [ $PASSED -gt 0 ]; then
+    echo -e "${GREEN}✅ All tests completed successfully${NC}"
+    echo ""
+    echo "Generated Code: WORKSPACE/"
+    echo "Test Results:   RESULTS/"
+    echo ""
+  else
+    echo -e "${RED}❌ Some tests failed${NC}"
+  fi
+
+  echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
+fi
+
+# Exit with appropriate code
+if [ $FAILED -gt 0 ]; then
+  exit 1
+else
+  exit 0
+fi

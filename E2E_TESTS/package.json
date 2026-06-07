@@ -1,0 +1,20 @@
+{
+  "name": "benchmark-ai-e2e-tests",
+  "version": "1.0.0",
+  "description": "End-to-end test suite for benchmarking generated projects",
+  "main": "index.js",
+  "scripts": {
+    "test": "node ../EVAL/evaluate.js",
+    "test:project": "node ../EVAL/evaluate.js"
+  },
+  "keywords": [
+    "benchmark",
+    "e2e",
+    "testing",
+    "code-generation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {},
+  "dependencies": {}
+}
