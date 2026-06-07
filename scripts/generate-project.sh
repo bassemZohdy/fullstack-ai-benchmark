@@ -4,7 +4,8 @@
 # Generic Project Generation Script
 #
 # Generates a project using LLM based on specification and parameters
-# Supports OpenCode as the harness with provider-specific model routing.
+# Supports pluggable harnesses (opencode, pi, or any custom harness) with
+# provider-specific model routing and harness-agnostic session management.
 #
 # Usage:
 #   ./scripts/generate-project.sh \
@@ -13,7 +14,7 @@
 #     --backend node-js \
 #     --frontend react \
 #     --output-dir WORKSPACE/... \
-#     [--harness opencode] \
+#     [--harness opencode|pi] \
 #     [--provider z-ai|openrouter] \
 #     [--timeout 120]
 #
@@ -26,14 +27,14 @@
 #     --output-dir   Where to save generated project
 #
 #   Optional:
-#     --harness      Generation harness (default: opencode)
+#     --harness      Generation harness (default: opencode; valid: opencode, pi, or custom)
 #     --provider     Model provider namespace (default: z-ai)
 #     --timeout      Generation timeout in seconds (default: 120)
 #     --spec-file    Custom specification file path
-#     --auto-approve Auto-approve OpenCode permissions (default: true)
+#     --auto-approve Auto-approve harness permissions (default: true)
 #     --retries      Generation attempts before failing (default: 3)
-#     --session-id   Existing OpenCode session id to resume
-#     --session-file File used to persist OpenCode session id
+#     --session-id   Existing harness session id to resume
+#     --session-file File used to persist harness session id
 #     --session-record-file File used to persist detailed session history
 #     --template     Prompt template path
 #     --dry-run      Simulate without API calls (default: false)
@@ -50,6 +51,74 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
+
+# Harness abstraction: Resolve CLI for any harness
+resolve_harness_cli() {
+  local harness="$1"
+  local cli=""
+
+  case "$harness" in
+    opencode)
+      if command -v opencode &> /dev/null; then
+        echo "opencode"
+      fi
+      ;;
+    pi)
+      # Check for PI CLI in multiple locations
+      for candidate in "$BENCHMARK_PI_CLI" "$PI_CLI" "$HOME/AppData/Local/pi-node/current/pi.cmd" "$HOME/AppData/Local/pi-node/current/pi.ps1" "$HOME/AppData/Local/pi-node/current/pi" "pi"; do
+        [ -z "$candidate" ] && continue
+        if [ -x "$candidate" ] || command -v "$candidate" &> /dev/null; then
+          echo "$candidate"
+          return 0
+        fi
+      done
+      ;;
+  esac
+  return 1
+}
+
+# Harness abstraction: Map provider to harness-specific format
+map_harness_provider() {
+  local harness="$1"
+  local provider="$2"
+
+  case "$harness" in
+    opencode)
+      [ "$provider" == "z-ai" ] && echo "zai-coding-plan" || echo "$provider"
+      ;;
+    pi)
+      [ "$provider" == "z-ai" ] && echo "zai-coding-cn" || echo "$provider"
+      ;;
+    *)
+      echo "$provider"
+      ;;
+  esac
+}
+
+# Harness abstraction: Map model ID to harness-specific format
+map_harness_model() {
+  local harness="$1"
+  local provider="$2"
+  local model="$3"
+
+  case "$model" in
+    GLM-5.1Z.AI|glm-5.1z.ai|glm-5.1)
+      [ "$provider" == "zai-coding-plan" ] || [ "$provider" == "zai-coding-cn" ] && echo "glm-5.1" || echo "$model"
+      ;;
+    kimi/2.6)
+      [ "$provider" == "openrouter" ] && echo "moonshotai/kimi-k2.6" || echo "$model"
+      ;;
+    minimax/1.5)
+      [ "$provider" == "openrouter" ] && echo "minimax/minimax-m3" || echo "$model"
+      ;;
+    xiaomi/mimo-2.5)
+      [ "$provider" == "openrouter" ] && echo "xiaomi/mimo-v2.5-pro" || echo "$model"
+      ;;
+    *)
+      echo "$model"
+      ;;
+  esac
+}
 
 # Defaults
 HARNESS="opencode"
@@ -212,11 +281,14 @@ FRONTEND_CARTRIDGE="$(cd "$(dirname "$FRONTEND_CARTRIDGE")" && pwd)/$(basename "
 TEMPLATE_FILE="$(cd "$(dirname "$TEMPLATE_FILE")" && pwd)/$(basename "$TEMPLATE_FILE")"
 
 # Validate harness/provider
-if [ "$HARNESS" != "opencode" ]; then
+if [ "$HARNESS" != "opencode" ] && [ "$HARNESS" != "pi" ]; then
   echo -e "${RED}❌ ERROR: Invalid harness: $HARNESS${NC}"
-  echo "Valid options: opencode"
+  echo "Valid options: opencode, pi"
   exit 1
 fi
+
+# Resolve harness CLI early (needed for all paths)
+HARNESS_CLI="$(resolve_harness_cli "$HARNESS")"
 
 if [ "$PROVIDER" != "z-ai" ] && [ "$PROVIDER" != "zai-coding-plan" ] && [ "$PROVIDER" != "openrouter" ]; then
   echo -e "${RED}❌ ERROR: Invalid provider: $PROVIDER${NC}"
@@ -248,9 +320,20 @@ if [ "$PROVIDER" == "openrouter" ] && [ -z "$OPENROUTER_API_KEY" ]; then
   exit 1
 fi
 
-if [ "$DRY_RUN" != "true" ] && ! command -v opencode &> /dev/null; then
-  echo -e "${RED}❌ ERROR: OpenCode CLI not found in PATH${NC}"
-  echo "Install with: pip install opencode (or follow https://opencode.ai/docs)"
+# Validate harness CLI is available
+if [ "$DRY_RUN" != "true" ] && [ -z "$HARNESS_CLI" ]; then
+  echo -e "${RED}❌ ERROR: CLI not found for harness: $HARNESS${NC}"
+  case "$HARNESS" in
+    opencode)
+      echo "Install with: pip install opencode (or follow https://opencode.ai/docs)"
+      ;;
+    pi)
+      echo "Install PI or set BENCHMARK_PI_CLI environment variable"
+      ;;
+    *)
+      echo "Please configure and install: $HARNESS"
+      ;;
+  esac
   exit 1
 fi
 
@@ -271,11 +354,19 @@ mkdir -p "$OUTPUT_DIR_PARENT"
 OUTPUT_DIR="$(cd "$OUTPUT_DIR_PARENT" && pwd)/$OUTPUT_DIR_BASENAME"
 
 if [ -z "$SESSION_FILE" ]; then
-  SESSION_FILE="$OUTPUT_DIR/.opencode-session-id"
+  if [ "$HARNESS" == "pi" ]; then
+    SESSION_FILE="$OUTPUT_DIR/.pi-session-id"
+  else
+    SESSION_FILE="$OUTPUT_DIR/.opencode-session-id"
+  fi
 fi
 
 if [ -z "$SESSION_RECORD_FILE" ]; then
-  SESSION_RECORD_FILE="$OUTPUT_DIR/.opencode-session"
+  if [ "$HARNESS" == "pi" ]; then
+    SESSION_RECORD_FILE="$OUTPUT_DIR/.pi-session"
+  else
+    SESSION_RECORD_FILE="$OUTPUT_DIR/.opencode-session"
+  fi
 fi
 
 if [ -z "$SESSION_ID" ] && [ -f "$SESSION_FILE" ]; then
@@ -312,40 +403,15 @@ START_TIME=$(date +%s)
 echo -e "${BLUE}Starting generation at $(date)${NC}"
 echo ""
 
-OPENCODE_PROVIDER="$PROVIDER"
-OPENCODE_MODEL_ID="$MODEL"
+# Resolve harness-specific provider and model
+HARNESS_PROVIDER="$(map_harness_provider "$HARNESS" "$PROVIDER")"
+HARNESS_MODEL_ID="$(map_harness_model "$HARNESS" "$HARNESS_PROVIDER" "$MODEL")"
 
-if [ "$OPENCODE_PROVIDER" == "z-ai" ]; then
-  OPENCODE_PROVIDER="zai-coding-plan"
-fi
-
-case "$OPENCODE_MODEL_ID" in
-  GLM-5.1Z.AI|glm-5.1z.ai|glm-5.1)
-    if [ "$OPENCODE_PROVIDER" == "zai-coding-plan" ]; then
-      OPENCODE_MODEL_ID="glm-5.1"
-    fi
-    ;;
-  kimi/2.6)
-    if [ "$OPENCODE_PROVIDER" == "openrouter" ]; then
-      OPENCODE_MODEL_ID="moonshotai/kimi-k2.6"
-    fi
-    ;;
-  minimax/1.5)
-    if [ "$OPENCODE_PROVIDER" == "openrouter" ]; then
-      OPENCODE_MODEL_ID="minimax/minimax-m3"
-    fi
-    ;;
-  xiaomi/mimo-2.5)
-    if [ "$OPENCODE_PROVIDER" == "openrouter" ]; then
-      OPENCODE_MODEL_ID="xiaomi/mimo-v2.5-pro"
-    fi
-    ;;
-esac
-
-if [[ "$OPENCODE_MODEL_ID" == "$OPENCODE_PROVIDER/"* ]]; then
-  OPENCODE_MODEL="$OPENCODE_MODEL_ID"
+# Format as provider/model if needed
+if [[ "$HARNESS_MODEL_ID" == "$HARNESS_PROVIDER/"* ]]; then
+  HARNESS_MODEL="$HARNESS_MODEL_ID"
 else
-  OPENCODE_MODEL="${OPENCODE_PROVIDER}/${OPENCODE_MODEL_ID}"
+  HARNESS_MODEL="${HARNESS_PROVIDER}/${HARNESS_MODEL_ID}"
 fi
 
 RENDERED_PROMPT="$(mktemp "${TMPDIR:-/tmp}/benchmark-ai-prompt.XXXXXX")"
@@ -386,23 +452,36 @@ NODE
 
 GEN_PROMPT="Generate the complete full-stack project described in the attached rendered specification file. Write all files directly into the current working directory and then stop."
 
+# Harness abstraction: Build command based on harness type
 build_gen_cmd() {
-  GEN_CMD=(opencode run --model "$OPENCODE_MODEL" --file "$RENDERED_PROMPT" --dir "$OUTPUT_DIR" --title "benchmark ${MODEL} ${BACKEND}-${FRONTEND} ${LEVEL}")
-
-  if [ "$AUTO_APPROVE" == "true" ]; then
-    GEN_CMD+=(--dangerously-skip-permissions)
-  fi
-
-  if [ ! -z "$SESSION_ID" ]; then
-    GEN_CMD+=(--session "$SESSION_ID")
-  fi
-
-  GEN_CMD+=("$GEN_PROMPT")
+  case "$HARNESS" in
+    opencode)
+      GEN_CMD=("$HARNESS_CLI" run --model "$HARNESS_MODEL" --file "$RENDERED_PROMPT" --dir "$OUTPUT_DIR" --title "benchmark ${MODEL} ${BACKEND}-${FRONTEND} ${LEVEL}")
+      if [ "$AUTO_APPROVE" == "true" ]; then
+        GEN_CMD+=(--dangerously-skip-permissions)
+      fi
+      if [ ! -z "$SESSION_ID" ]; then
+        GEN_CMD+=(--session "$SESSION_ID")
+      fi
+      GEN_CMD+=("$GEN_PROMPT")
+      ;;
+    pi)
+      GEN_CMD=("$HARNESS_CLI" --provider "$HARNESS_PROVIDER" --model "$HARNESS_MODEL_ID" --no-context-files -p "@$RENDERED_PROMPT")
+      ;;
+    *)
+      echo -e "${RED}❌ ERROR: Unknown harness: $HARNESS${NC}"
+      exit 1
+      ;;
+  esac
 }
 
+# Harness abstraction: Capture session ID based on harness type
 capture_latest_session_id() {
-  local latest_session
-  latest_session="$(opencode session list --format json --max-count 1 2>/dev/null | node -e '
+  local latest_session=""
+
+  case "$HARNESS" in
+    opencode)
+      latest_session="$(opencode session list --format json --max-count 1 2>/dev/null | node -e '
 let input = "";
 process.stdin.on("data", chunk => input += chunk);
 process.stdin.on("end", () => {
@@ -414,6 +493,16 @@ process.stdin.on("end", () => {
   } catch {}
 });
 ' 2>/dev/null || true)"
+      ;;
+    pi)
+      # PI might have different session tracking; implement as needed
+      # For now, sessions are tracked internally by PI
+      return 0
+      ;;
+    *)
+      return 0
+      ;;
+  esac
 
   if [ ! -z "$latest_session" ]; then
     SESSION_ID="$latest_session"
@@ -422,14 +511,25 @@ process.stdin.on("end", () => {
   fi
 }
 
+# Harness abstraction: Export session data based on harness type
 capture_latest_session_export() {
   if [ -z "$SESSION_ID" ]; then
+    : > "$SESSION_EXPORT_FILE"
     return 0
   fi
 
-  if opencode export "$SESSION_ID" > "$SESSION_EXPORT_FILE" 2>/dev/null; then
-    return 0
-  fi
+  case "$HARNESS" in
+    opencode)
+      if opencode export "$SESSION_ID" > "$SESSION_EXPORT_FILE" 2>/dev/null; then
+        return 0
+      fi
+      ;;
+    pi)
+      # PI exports might work differently; implement as needed
+      : > "$SESSION_EXPORT_FILE"
+      return 0
+      ;;
+  esac
 
   : > "$SESSION_EXPORT_FILE"
 }
@@ -442,6 +542,8 @@ initialize_session_record() {
     "model": "$MODEL",
     "provider": "$PROVIDER",
     "harness": "$HARNESS",
+    "harness_model": "$HARNESS_MODEL",
+    "harness_provider": "$HARNESS_PROVIDER",
     "level": "$LEVEL",
     "backend": "$BACKEND",
     "frontend": "$FRONTEND",
@@ -450,7 +552,6 @@ initialize_session_record() {
     "template_file": "$TEMPLATE_FILE",
     "backend_cartridge": "$BACKEND_CARTRIDGE",
     "frontend_cartridge": "$FRONTEND_CARTRIDGE",
-    "opencode_model": "$OPENCODE_MODEL",
     "timeout_seconds": $TIMEOUT,
     "retries": $RETRIES,
     "started_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -470,7 +571,7 @@ append_session_record() {
   local elapsed_seconds="$5"
   local requested_session_id="$6"
 
-  node - "$SESSION_RECORD_FILE" "$SESSION_EXPORT_FILE" "$MODEL" "$PROVIDER" "$HARNESS" "$LEVEL" "$BACKEND" "$FRONTEND" "$OUTPUT_DIR" "$OPENCODE_MODEL" "$attempt" "$status" "$started_at" "$ended_at" "$elapsed_seconds" "$requested_session_id" "$SESSION_ID" <<'NODE'
+  node - "$SESSION_RECORD_FILE" "$SESSION_EXPORT_FILE" "$MODEL" "$PROVIDER" "$HARNESS" "$LEVEL" "$BACKEND" "$FRONTEND" "$OUTPUT_DIR" "$HARNESS_MODEL" "$attempt" "$status" "$started_at" "$ended_at" "$elapsed_seconds" "$requested_session_id" "$SESSION_ID" <<'NODE'
 const fs = require("fs");
 const [
   recordFile,
@@ -482,7 +583,7 @@ const [
   backend,
   frontend,
   outputDir,
-  opencodeModel,
+  harnessModel,
   attempt,
   status,
   startedAt,
@@ -528,7 +629,7 @@ const attemptRecord = {
   elapsed_seconds: Number(elapsedSeconds) || null,
   title: info.title || null,
   directory: info.directory || outputDir,
-  model: modelInfo.id || opencodeModel,
+  model: modelInfo.id || harnessModel,
   provider: modelInfo.providerID || null,
   version: info.version || null,
   cost_usd: typeof info.cost === "number" ? info.cost : null,
@@ -559,7 +660,7 @@ record.metadata = {
   backend,
   frontend,
   output_dir: outputDir,
-  opencode_model: opencodeModel
+  harness_model: harnessModel
 };
 record.latest_session_id = latestSessionId || null;
 record.latest_attempt = attemptRecord;
@@ -608,7 +709,7 @@ else
 
   echo -e "${BLUE}Harness: ${YELLOW}${HARNESS}${NC}"
   echo -e "${BLUE}Provider: ${YELLOW}${PROVIDER}${NC}"
-  echo -e "${BLUE}OpenCode Model: ${YELLOW}${OPENCODE_MODEL}${NC}"
+  echo -e "${BLUE}Harness Model: ${YELLOW}${HARNESS_MODEL}${NC}"
   echo -e "${BLUE}Executing generation...${NC}"
   echo ""
 
@@ -621,7 +722,7 @@ else
     build_gen_cmd
     echo -e "${BLUE}Attempt ${ATTEMPT}/${RETRIES}${NC}"
     if [ ! -z "$SESSION_ID" ]; then
-      echo -e "${BLUE}Resuming OpenCode session: ${YELLOW}${SESSION_ID}${NC}"
+      echo -e "${BLUE}Resuming ${HARNESS} session: ${YELLOW}${SESSION_ID}${NC}"
     fi
 
     if run_generation_attempt; then
