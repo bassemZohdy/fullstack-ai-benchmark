@@ -4,36 +4,61 @@
 
 This repository is a shell-orchestrated benchmark for generated full-stack projects. The root intentionally has no `package.json`.
 
-- `scripts/`: benchmark orchestration scripts.
-- `PROMPTS/`: `overview.md`, `detailed.md`, prompt templates, and stack cartridges.
-- `EVAL/`: self-contained evaluator; current entry point is `EVAL/evaluate.js`.
-- `E2E_TESTS/`: reserved compatibility area for future expanded E2E suites.
-- `WORKSPACE/opencode-<model-slug>/<level>/`: one active generated project per model and spec level. The workspace also contains `.opencode-session-id` and `.opencode-session`.
-- `RESULTS/opencode-<model-slug>/<backend>-<frontend>/<level>/`: permanent evaluation outputs.
-- `docs/`: architecture, scripts, methodology, and result format documentation.
+- `scripts/`: benchmark orchestration scripts
+  - `render-prompt.sh`: Standalone prompt templating (reads template, specs, cartridges → final prompt)
+  - `generate-project.sh`: Project generation with harness orchestration (calls render-prompt.sh)
+  - `run-benchmark.sh`: Multi-model/level benchmark runner
+  - `eval-generated-project.sh`: Project evaluation orchestrator
+  - `test-setup.sh`: Local syntax and integration checks
+- `PROMPTS/`: specification levels (`overview.md`, `detailed.md`), prompt templates, and stack cartridges
+- `EVAL/`: self-contained evaluator; entry point is `EVAL/comprehensive-evaluator.js`
+- `E2E_TESTS/`: reserved compatibility area for future expanded E2E suites
+- `WORKSPACE/opencode-<model-slug>/<level>/`: one active generated project per model and spec level (includes `.opencode-session-id` and `.opencode-session` for session tracking)
+- `RESULTS/opencode-<model-slug>/<backend>-<frontend>/<level>/`: permanent evaluation outputs
+- `docs/`: architecture, scripts, methodology, and result format documentation
 
 ## Build, Test, and Development Commands
 
+**Test prompt rendering** (standalone):
 ```bash
-./scripts/run-benchmark.sh --model GLM-5.1Z.AI --level overview --backend spring-boot --frontend angular --provider z-ai
+./scripts/render-prompt.sh \
+  --template PROMPTS/templates/project-generation.md \
+  --spec PROMPTS/overview.md \
+  --backend-cartridge PROMPTS/cartridges/backend/spring-boot.md \
+  --frontend-cartridge PROMPTS/cartridges/frontend/angular.md \
+  --level overview --backend spring-boot --frontend angular
 ```
-Runs a single benchmark with all required selectors (model, level, backend, frontend).
+Renders final prompt without invoking harness. Useful for testing prompt logic.
 
+**Generate a single project**:
 ```bash
-./scripts/run-benchmark.sh --model kimi/2.6 --level overview --backend node-js --frontend react --provider openrouter
+./scripts/generate-project.sh \
+  --model GLM-5.1Z.AI --level overview \
+  --backend spring-boot --frontend angular --provider z-ai
 ```
-Runs benchmark with a different model and stack.
+Generates one project. Uses `render-prompt.sh` internally, invokes OpenCode harness.
 
+**Run benchmark suite**:
 ```bash
-./scripts/run-benchmark.sh --model GLM-5.1Z.AI --level overview --backend spring-boot --frontend angular --provider z-ai --retries 5
+./scripts/run-benchmark.sh \
+  --model GLM-5.1Z.AI --level overview \
+  --backend spring-boot --frontend angular --provider z-ai
 ```
-Retries generation and resumes with `WORKSPACE/opencode-<model-slug>/<level>/.opencode-session-id` when available. Detailed retry metadata is written to `.opencode-session`.
+Full benchmark with all selectors (model, level, backend, frontend).
 
+**Resume with session tracking**:
 ```bash
-bash -n scripts/*.sh
-node --check EVAL/evaluate.js
+./scripts/run-benchmark.sh \
+  --model GLM-5.1Z.AI --level overview \
+  --backend spring-boot --frontend angular --provider z-ai --retries 5
 ```
-Performs local syntax checks.
+Retries generation and resumes with `WORKSPACE/opencode-<model-slug>/<level>/.opencode-session-id` when available. Detailed retry metadata written to `.opencode-session`.
+
+**Local syntax check**:
+```bash
+bash -n scripts/*.sh && node --check EVAL/comprehensive-evaluator.js
+```
+Validates script and evaluator syntax.
 
 ## Coding Style & Naming Conventions
 

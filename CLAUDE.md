@@ -16,29 +16,33 @@ This repository benchmarks full-stack project generation across tools, models, a
 
 ## Prompt and Workspace Rules
 
-- Build prompts from `PROMPTS/templates/project-generation.md`, the selected spec file, and backend/frontend cartridges.
+- **Prompt Templating**: Use `scripts/render-prompt.sh` to build final prompts from `PROMPTS/templates/project-generation.md`, the selected spec file, and backend/frontend cartridges. This script is separate from project generation for clean separation of concerns.
 - Keep backend and frontend in separate top-level directories inside each generated project.
 - Require successful compilation and `docker compose up` for both spec levels.
 - Let OpenCode generate the project `README.md`; do not copy a template README into the workspace.
 - Preserve `.opencode-session-id` as the latest resumable session id.
-- Store detailed retry metadata, token counts, and estimated cost in `.opencode-session`.
+- Store detailed retry metadata, token counts, and estimated cost in `.opencode-session` (includes generation inputs for auditing).
 
 ## Script Contract
 
 Use the generic scripts only:
 
 ```bash
-./scripts/generate-project.sh
-./scripts/eval-generated-project.sh
-./scripts/run-benchmark.sh
-./scripts/test-setup.sh
+./scripts/render-prompt.sh          # Prompt templating (reusable)
+./scripts/generate-project.sh       # Project generation orchestration
+./scripts/eval-generated-project.sh # Project evaluation
+./scripts/run-benchmark.sh          # Full benchmark execution
+./scripts/test-setup.sh             # Local smoke check
 ```
 
-- `run-benchmark.sh` requires `--model`, `--level`, `--backend`, and `--frontend`.
-- `generate-project.sh` runs OpenCode in non-interactive mode with `opencode run`.
-- `eval-generated-project.sh` delegates to `EVAL/comprehensive-evaluator.js`.
-- `test-setup.sh` is the local smoke check for prompt rendering, harness setup, and evaluator syntax.
-- Current evaluation coverage is Spring Boot backend plus Angular frontend. Other cartridges may be generated, but evaluation support for them is not implemented yet.
+**Script responsibilities**:
+- `render-prompt.sh`: Combines template, specs, and cartridges into final prompt. Standalone and reusable.
+- `generate-project.sh`: Calls `render-prompt.sh`, invokes harness, manages retries and session tracking. Requires `--model`, `--level`, `--backend`, `--frontend`.
+- `run-benchmark.sh`: Orchestrates multi-model/level/stack benchmark runs.
+- `eval-generated-project.sh`: Delegates to `EVAL/comprehensive-evaluator.js`.
+- `test-setup.sh`: Local syntax and setup validation for all components.
+
+**Current evaluation coverage**: Spring Boot backend plus Angular frontend. Other cartridges may be generated, but evaluation support for them is not implemented yet.
 
 ## Documentation Rules
 
