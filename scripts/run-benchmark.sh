@@ -191,7 +191,15 @@ for test_case in "${FILTERED_TESTS[@]}"; do
   MODEL_SLUG="$(slugify_model "$model")"
   WORKSPACE_DIR="WORKSPACE/${MODEL_SLUG}/${level}"
   RESULTS_DIR="RESULTS/${MODEL_SLUG}/${backend}-${frontend}/${level}/"
-  SESSION_FILE="${WORKSPACE_DIR}/.opencode-session-id"
+
+  # Harness-specific session file naming
+  SESSION_FILE_SUFFIX=""
+  case "$HARNESS" in
+    opencode) SESSION_FILE_SUFFIX=".opencode-session-id" ;;
+    pi) SESSION_FILE_SUFFIX=".pi-session-id" ;;
+    *) SESSION_FILE_SUFFIX=".${HARNESS}-session-id" ;;
+  esac
+  SESSION_FILE="${WORKSPACE_DIR}${SESSION_FILE_SUFFIX}"
 
   # Generation phase
   if [ "$SKIP_GEN" != "true" ]; then

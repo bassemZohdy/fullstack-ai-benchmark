@@ -64,10 +64,10 @@ resolve_harness_cli() {
       fi
       ;;
     pi)
-      # Check for PI CLI in multiple locations
-      for candidate in "$BENCHMARK_PI_CLI" "$PI_CLI" "$HOME/AppData/Local/pi-node/current/pi.cmd" "$HOME/AppData/Local/pi-node/current/pi.ps1" "$HOME/AppData/Local/pi-node/current/pi" "pi"; do
+      # Check for PI CLI in multiple locations (prefer .cmd over .ps1 for bash)
+      for candidate in "$BENCHMARK_PI_CLI" "$PI_CLI" "$HOME/AppData/Local/pi-node/current/pi.cmd" "$HOME/AppData/Local/pi-node/current/pi" "pi"; do
         [ -z "$candidate" ] && continue
-        if [ -x "$candidate" ] || command -v "$candidate" &> /dev/null; then
+        if [ -x "$candidate" ] 2>/dev/null || [ -f "$candidate" ] 2>/dev/null || command -v "$candidate" &> /dev/null 2>&1; then
           echo "$candidate"
           return 0
         fi
