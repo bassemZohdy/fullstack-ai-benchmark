@@ -3,6 +3,11 @@
 const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
+const {
+  describeSupportedLayout,
+  resolveBackendRoot,
+  resolveFrontendRoot,
+} = require("./utils/project-layout");
 
 // Import cartridge evaluators
 const springBootEval = require("./cartridges/backend/spring-boot.js");
@@ -49,6 +54,19 @@ function evaluateFrontend(projectDir, backend, frontend) {
     };
   }
 
+  const frontendRoot = resolveFrontendRoot(projectDir);
+  if (!frontendRoot) {
+    return {
+      passed: 0,
+      failed: 1,
+      tests: [{
+        name: "Supported frontend layout detected",
+        status: "failed",
+        details: describeSupportedLayout()
+      }]
+    };
+  }
+
   const tests = angularEval.testAngularStructure(projectDir);
   const passed = tests.filter(t => t.status === "passed").length;
   const failed = tests.filter(t => t.status === "failed").length;
@@ -69,6 +87,19 @@ function evaluateBackend(projectDir, backend, frontend) {
     };
   }
 
+  const backendRoot = resolveBackendRoot(projectDir);
+  if (!backendRoot) {
+    return {
+      passed: 0,
+      failed: 1,
+      tests: [{
+        name: "Supported backend layout detected",
+        status: "failed",
+        details: describeSupportedLayout()
+      }]
+    };
+  }
+
   const tests = springBootEval.testSpringBootStructure(projectDir);
   const passed = tests.filter(t => t.status === "passed").length;
   const failed = tests.filter(t => t.status === "failed").length;
@@ -78,6 +109,20 @@ function evaluateBackend(projectDir, backend, frontend) {
 
 function evaluateDockerIntegration(projectDir) {
   const tests = [];
+  const backendRoot = resolveBackendRoot(projectDir);
+  const frontendRoot = resolveFrontendRoot(projectDir);
+
+  if (!backendRoot || !frontendRoot) {
+    return {
+      passed: 0,
+      failed: 1,
+      tests: [{
+        name: "Supported project layout detected",
+        status: "failed",
+        details: describeSupportedLayout()
+      }]
+    };
+  }
 
   // Check docker-compose.yml exists
   const hasCompose = fs.existsSync(path.join(projectDir, "docker-compose.yml")) ||

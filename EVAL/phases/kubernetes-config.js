@@ -6,7 +6,7 @@ const path = require("path");
 function hasFile(dir, pattern) {
   try {
     const files = fs.readdirSync(dir, { recursive: true }) || [];
-    return files.some(f => pattern.test(f));
+    return files.some((f) => pattern.test(f.replace(/\\/g, "/")));
   } catch {
     return false;
   }

@@ -390,6 +390,7 @@ fi
 if [ -z "$SESSION_ID" ] && [ -f "$SESSION_FILE" ]; then
   SESSION_ID="$(head -n 1 "$SESSION_FILE" | tr -d '[:space:]')"
 fi
+INITIAL_SESSION_ID="$SESSION_ID"
 
 # Print execution info
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
@@ -787,7 +788,7 @@ else
   mkdir -p "$OUTPUT_DIR"
   find "$OUTPUT_DIR" -mindepth 1 -exec rm -rf {} +
   initialize_session_record
-  SESSION_ID=""
+  SESSION_ID="$INITIAL_SESSION_ID"
 
   echo -e "${BLUE}Harness: ${YELLOW}${HARNESS}${NC}"
   echo -e "${BLUE}Provider: ${YELLOW}${PROVIDER}${NC}"

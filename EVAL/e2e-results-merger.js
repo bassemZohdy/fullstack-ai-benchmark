@@ -152,10 +152,8 @@ function calculateE2EScore(e2eResults) {
 }
 
 function mergeEvaluationResults(staticResults, e2eResults) {
-  if (!staticResults) {
-    console.error("Static evaluation results required");
-    process.exit(1);
-  }
+  validateStaticResults(staticResults);
+  validateE2EResults(e2eResults);
 
   const e2eTests = convertE2EResultsToEvaluationTests(e2eResults);
   const e2eScore = calculateE2EScore(e2eResults);
@@ -230,6 +228,33 @@ function parseArgs(argv) {
     i += 1;
   }
   return args;
+}
+
+function validateStaticResults(staticResults) {
+  if (!staticResults || typeof staticResults !== "object") {
+    throw new Error("Static evaluation results must be a JSON object");
+  }
+  if (!staticResults.quality || typeof staticResults.quality !== "object") {
+    throw new Error("Static evaluation results are missing quality");
+  }
+  if (!staticResults.quality.scores || typeof staticResults.quality.scores !== "object") {
+    throw new Error("Static evaluation results are missing quality.scores");
+  }
+  if (!staticResults.metadata || typeof staticResults.metadata !== "object") {
+    throw new Error("Static evaluation results are missing metadata");
+  }
+}
+
+function validateE2EResults(e2eResults) {
+  if (!e2eResults) {
+    return;
+  }
+  if (typeof e2eResults !== "object") {
+    throw new Error("E2E results must be a JSON object when provided");
+  }
+  if (!e2eResults.phases || typeof e2eResults.phases !== "object") {
+    throw new Error("E2E results are missing phases");
+  }
 }
 
 async function main() {

@@ -2,6 +2,10 @@ const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
 
+const NPM_COMMAND = "npm";
+const MVN_COMMAND = "mvn";
+const USE_SHELL = process.platform === "win32";
+
 function buildSpringBoot(projectDir, timeout) {
   const backendDir = path.join(projectDir, "backend");
   if (!fs.existsSync(backendDir)) {
@@ -19,20 +23,24 @@ function buildSpringBoot(projectDir, timeout) {
     };
   }
 
+  const startedAt = Date.now();
   // Run: mvn clean package -q (quiet mode)
-  const result = spawnSync("mvn", ["clean", "package", "-q", "-DskipTests"], {
+  const result = spawnSync(MVN_COMMAND, ["clean", "package", "-q", "-DskipTests"], {
     cwd: backendDir,
     encoding: "utf8",
     timeout,
-    stdio: "pipe"
+    stdio: "pipe",
+    shell: USE_SHELL
   });
 
   return {
     status: result.status === 0 ? "passed" : "failed",
     exitCode: result.status,
-    duration: Date.now(),
+    duration: Date.now() - startedAt,
     output: result.stdout || result.stderr,
-    error: result.status !== 0 ? (result.stderr || "Maven build failed") : null
+    error: result.status !== 0
+      ? (result.error?.message || result.stderr || "Maven build failed")
+      : null
   };
 }
 
@@ -53,35 +61,42 @@ function buildAngular(projectDir, timeout) {
     };
   }
 
+  const startedAt = Date.now();
   // First: npm install
-  const installResult = spawnSync("npm", ["install", "--legacy-peer-deps"], {
+  const installResult = spawnSync(NPM_COMMAND, ["install", "--legacy-peer-deps"], {
     cwd: frontendDir,
     encoding: "utf8",
     timeout,
-    stdio: "pipe"
+    stdio: "pipe",
+    shell: USE_SHELL
   });
 
   if (installResult.status !== 0) {
     return {
       status: "failed",
       exitCode: installResult.status,
-      error: installResult.stderr || "npm install failed"
+      duration: Date.now() - startedAt,
+      error: installResult.error?.message || installResult.stderr || "npm install failed"
     };
   }
 
   // Second: npm run build
-  const buildResult = spawnSync("npm", ["run", "build"], {
+  const buildResult = spawnSync(NPM_COMMAND, ["run", "build"], {
     cwd: frontendDir,
     encoding: "utf8",
     timeout,
-    stdio: "pipe"
+    stdio: "pipe",
+    shell: USE_SHELL
   });
 
   return {
     status: buildResult.status === 0 ? "passed" : "failed",
     exitCode: buildResult.status,
+    duration: Date.now() - startedAt,
     output: buildResult.stdout || buildResult.stderr,
-    error: buildResult.status !== 0 ? (buildResult.stderr || "npm build failed") : null
+    error: buildResult.status !== 0
+      ? (buildResult.error?.message || buildResult.stderr || "npm build failed")
+      : null
   };
 }
 
@@ -102,18 +117,21 @@ function buildNodeJs(projectDir, timeout) {
     };
   }
 
+  const startedAt = Date.now();
   // Run: npm install
-  const result = spawnSync("npm", ["install"], {
+  const result = spawnSync(NPM_COMMAND, ["install"], {
     cwd: backendDir,
     encoding: "utf8",
     timeout,
-    stdio: "pipe"
+    stdio: "pipe",
+    shell: USE_SHELL
   });
 
   return {
     status: result.status === 0 ? "passed" : "failed",
     exitCode: result.status,
-    error: result.status !== 0 ? (result.stderr || "npm install failed") : null
+    duration: Date.now() - startedAt,
+    error: result.status !== 0 ? (result.error?.message || result.stderr || "npm install failed") : null
   };
 }
 
@@ -134,34 +152,41 @@ function buildReact(projectDir, timeout) {
     };
   }
 
+  const startedAt = Date.now();
   // First: npm install
-  const installResult = spawnSync("npm", ["install"], {
+  const installResult = spawnSync(NPM_COMMAND, ["install"], {
     cwd: frontendDir,
     encoding: "utf8",
     timeout,
-    stdio: "pipe"
+    stdio: "pipe",
+    shell: USE_SHELL
   });
 
   if (installResult.status !== 0) {
     return {
       status: "failed",
       exitCode: installResult.status,
-      error: installResult.stderr || "npm install failed"
+      duration: Date.now() - startedAt,
+      error: installResult.error?.message || installResult.stderr || "npm install failed"
     };
   }
 
   // Second: npm run build
-  const buildResult = spawnSync("npm", ["run", "build"], {
+  const buildResult = spawnSync(NPM_COMMAND, ["run", "build"], {
     cwd: frontendDir,
     encoding: "utf8",
     timeout,
-    stdio: "pipe"
+    stdio: "pipe",
+    shell: USE_SHELL
   });
 
   return {
     status: buildResult.status === 0 ? "passed" : "failed",
     exitCode: buildResult.status,
-    error: buildResult.status !== 0 ? (buildResult.stderr || "npm build failed") : null
+    duration: Date.now() - startedAt,
+    error: buildResult.status !== 0
+      ? (buildResult.error?.message || buildResult.stderr || "npm build failed")
+      : null
   };
 }
 

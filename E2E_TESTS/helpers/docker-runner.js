@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { spawnSync, spawn } = require("child_process");
+const { spawnSync } = require("child_process");
 const http = require("http");
 
 function checkDockerCompose(projectDir) {
@@ -19,7 +19,7 @@ function checkDockerCompose(projectDir) {
 }
 
 async function startup(projectDir, options = {}) {
-  const timeout = options.timeout || 120000; // 2 min default
+  const timeout = options.timeout || 120000;
   const composePath = checkDockerCompose(projectDir);
 
   if (!composePath) {
@@ -31,8 +31,6 @@ async function startup(projectDir, options = {}) {
 
   return new Promise((resolve) => {
     const startTime = Date.now();
-    let lastActivityTime = startTime;
-    let processActive = false;
 
     try {
       const result = spawnSync("docker", ["compose", "up", "-d"], {
@@ -42,10 +40,9 @@ async function startup(projectDir, options = {}) {
       });
 
       const duration = Date.now() - startTime;
-      processActive = result.status === 0;
 
       resolve({
-        status: processActive ? "started" : "failed",
+        status: result.status === 0 ? "started" : "failed",
         exitCode: result.status,
         duration,
         error: result.status !== 0 ? (result.stderr || "Failed to start services") : null
@@ -59,52 +56,60 @@ async function startup(projectDir, options = {}) {
   });
 }
 
-async function waitForHealth(projectDir, options = {}) {
-  const timeout = options.timeout || 60000; // 1 min default
-  const startTime = Date.now();
-
+function probePort(port, timeout = 1000) {
   return new Promise((resolve) => {
-    const checkInterval = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-
-      // Check common ports used by Spring Boot and Angular/React
-      const ports = [8080, 8081, 3000, 8000, 5000];
-      let anyPortOpen = false;
-
-      for (const port of ports) {
-        const req = http.request(
-          { host: "localhost", port, path: "/health", method: "GET" },
-          (res) => {
-            if (res.statusCode === 200 || res.statusCode === 404) {
-              anyPortOpen = true;
-            }
-          }
-        );
-        req.on("error", () => {}); // Ignore errors
-        req.setTimeout(1000, () => req.abort());
-        req.end();
-      }
-
-      if (anyPortOpen) {
-        clearInterval(checkInterval);
+    const req = http.request(
+      { host: "localhost", port, path: "/health", method: "GET" },
+      (res) => {
+        res.resume();
         resolve({
-          ready: true,
-          duration: elapsed
+          open: true,
+          statusCode: res.statusCode
         });
-        return;
       }
+    );
 
-      if (elapsed > timeout) {
-        clearInterval(checkInterval);
-        resolve({
-          ready: false,
-          duration: elapsed,
-          error: "Service health check timeout"
-        });
-        return;
-      }
-    }, 2000); // Check every 2 seconds
+    req.on("error", () => {
+      resolve({
+        open: false,
+        statusCode: null
+      });
+    });
+
+    req.setTimeout(timeout, () => {
+      req.destroy(new Error("Request timeout"));
+    });
+
+    req.end();
   });
+}
+
+async function waitForHealth(projectDir, options = {}) {
+  const timeout = options.timeout || 60000;
+  const startTime = Date.now();
+  const ports = [8080, 8081, 3000, 8000, 5000];
+
+  while (Date.now() - startTime <= timeout) {
+    const probes = await Promise.all(ports.map((port) => probePort(port)));
+    const healthyProbe = probes.find((probe) => probe.open && (probe.statusCode === 200 || probe.statusCode === 404));
+
+    if (healthyProbe) {
+      return {
+        ready: true,
+        duration: Date.now() - startTime,
+        port: ports[probes.indexOf(healthyProbe)],
+        statusCode: healthyProbe.statusCode
+      };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+
+  return {
+    ready: false,
+    duration: Date.now() - startTime,
+    error: "Service health check timeout"
+  };
 }
 
 async function shutdown(projectDir) {

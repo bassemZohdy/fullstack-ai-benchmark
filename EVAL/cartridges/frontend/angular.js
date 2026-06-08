@@ -2,14 +2,15 @@
 
 const fs = require("fs");
 const path = require("path");
+const {
+  describeSupportedLayout,
+  normalizePath,
+  resolveFrontendRoot,
+  safeRecursiveRead
+} = require("../../utils/project-layout");
 
 function hasFile(dir, pattern) {
-  try {
-    const files = fs.readdirSync(dir, { recursive: true }) || [];
-    return files.some(f => pattern.test(f));
-  } catch {
-    return false;
-  }
+  return safeRecursiveRead(dir).some((f) => pattern.test(normalizePath(f)));
 }
 
 function readFile(file) {
@@ -23,10 +24,14 @@ function readFile(file) {
 function testAngularStructure(projectDir) {
   const tests = [];
 
-  // Auto-detect frontend subdirectory if it exists
-  const frontendDir = fs.existsSync(path.join(projectDir, "frontend"))
-    ? path.join(projectDir, "frontend")
-    : projectDir;
+  const frontendDir = resolveFrontendRoot(projectDir);
+  if (!frontendDir) {
+    return [{
+      name: "Supported frontend layout detected",
+      status: "failed",
+      details: `No supported Angular layout found. ${describeSupportedLayout()}`
+    }];
+  }
 
   // Check angular.json exists
   const angularJsonPath = path.join(frontendDir, "angular.json");
@@ -99,7 +104,7 @@ function testAngularStructure(projectDir) {
 
   // Check for Module or Standalone routing
   const hasModule = hasFile(frontendDir, /app\.module\.ts$/);
-  const hasRouting = hasFile(frontendDir, /app\.(routes|routing)\.ts$/);
+  const hasRouting = hasFile(frontendDir, /app\.(routes|routing|config)\.ts$/);
   const hasModuleOrRouting = hasModule || hasRouting;
   tests.push({
     name: "Routing configured (Module or Routes)",

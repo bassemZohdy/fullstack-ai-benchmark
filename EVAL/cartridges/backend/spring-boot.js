@@ -2,14 +2,15 @@
 
 const fs = require("fs");
 const path = require("path");
+const {
+  describeSupportedLayout,
+  normalizePath,
+  resolveBackendRoot,
+  safeRecursiveRead
+} = require("../../utils/project-layout");
 
 function hasFile(dir, pattern) {
-  try {
-    const files = fs.readdirSync(dir, { recursive: true }) || [];
-    return files.some(f => pattern.test(f));
-  } catch {
-    return false;
-  }
+  return safeRecursiveRead(dir).some((f) => pattern.test(normalizePath(f)));
 }
 
 function readFile(file) {
@@ -23,10 +24,14 @@ function readFile(file) {
 function testSpringBootStructure(projectDir) {
   const tests = [];
 
-  // Auto-detect backend subdirectory if it exists
-  const backendDir = fs.existsSync(path.join(projectDir, "backend"))
-    ? path.join(projectDir, "backend")
-    : projectDir;
+  const backendDir = resolveBackendRoot(projectDir);
+  if (!backendDir) {
+    return [{
+      name: "Supported backend layout detected",
+      status: "failed",
+      details: `No supported Spring Boot layout found. ${describeSupportedLayout()}`
+    }];
+  }
 
   // Check pom.xml exists
   const pomPath = path.join(backendDir, "pom.xml");

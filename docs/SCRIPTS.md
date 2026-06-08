@@ -34,7 +34,7 @@ Examples:
 ./scripts/run-benchmark.sh --model GLM-5.1Z.AI --level overview --backend spring-boot --frontend angular --skip-gen
 ```
 
-Current evaluation support is implemented for Spring Boot + Angular. Use other backend/frontend combinations for generation-only runs until the matching evaluators exist.
+Current end-to-end evaluation support is implemented for Spring Boot + Angular only. Use other backend/frontend combinations for generation-only runs until the matching evaluators exist.
 
 ## generate-project.sh
 

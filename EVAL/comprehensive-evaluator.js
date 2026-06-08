@@ -3,6 +3,13 @@
 const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
+const {
+  describeSupportedLayout,
+  normalizePath,
+  resolveBackendRoot,
+  resolveFrontendRoot,
+  safeRecursiveRead
+} = require("./utils/project-layout");
 
 // Import cartridge evaluators
 const springBootEval = require("./cartridges/backend/spring-boot.js");
@@ -73,6 +80,8 @@ function evaluateCartridgeStructure(projectDir, backend, frontend) {
 
 function evaluateCodeQuality(projectDir) {
   const tests = [];
+  const backendDir = resolveBackendRoot(projectDir);
+  const frontendDir = resolveFrontendRoot(projectDir);
 
   // Check README exists
   const hasReadme = fs.existsSync(path.join(projectDir, "README.md"));
@@ -99,13 +108,13 @@ function evaluateCodeQuality(projectDir) {
   });
 
   // Check for organized directory structure
-  const hasBackend = fs.existsSync(path.join(projectDir, "backend"));
-  const hasFrontend = fs.existsSync(path.join(projectDir, "frontend"));
+  const hasBackend = Boolean(backendDir);
+  const hasFrontend = Boolean(frontendDir);
   const organized = hasBackend && hasFrontend;
   tests.push({
-    name: "Code organized in backend/frontend directories",
+    name: "Supported backend/frontend layout detected",
     status: organized ? "passed" : "failed",
-    details: organized ? "" : "Backend/frontend not properly separated"
+    details: organized ? "" : describeSupportedLayout()
   });
 
   // Check for Docker directory
@@ -184,12 +193,23 @@ function evaluateIntegration(projectDir) {
   const tests = [];
 
   // Check for API endpoints in backend
-  const backendDir = fs.existsSync(path.join(projectDir, "backend"))
-    ? path.join(projectDir, "backend")
-    : projectDir;
+  const backendDir = resolveBackendRoot(projectDir);
+  const frontendDir = resolveFrontendRoot(projectDir);
 
-  const hasControllers = fs.readdirSync(backendDir, { recursive: true }).some(f =>
-    /Controller\.java$/.test(f)
+  if (!backendDir || !frontendDir) {
+    return {
+      passed: 0,
+      failed: 1,
+      tests: [{
+        name: "Supported project layout detected",
+        status: "failed",
+        details: describeSupportedLayout()
+      }]
+    };
+  }
+
+  const hasControllers = safeRecursiveRead(backendDir).some(f =>
+    /Controller\.java$/.test(normalizePath(f))
   );
   tests.push({
     name: "Backend API controllers defined",
@@ -198,12 +218,8 @@ function evaluateIntegration(projectDir) {
   });
 
   // Check for frontend services calling backend
-  const frontendDir = fs.existsSync(path.join(projectDir, "frontend"))
-    ? path.join(projectDir, "frontend")
-    : projectDir;
-
-  const hasServices = fs.readdirSync(frontendDir, { recursive: true }).some(f =>
-    /\.service\.ts$/.test(f)
+  const hasServices = safeRecursiveRead(frontendDir).some(f =>
+    /\.service\.ts$/.test(normalizePath(f))
   );
   tests.push({
     name: "Frontend API services configured",
@@ -246,12 +262,23 @@ function evaluateE2EAndOther(projectDir) {
   const tests = [];
 
   // Check for test files in backend
-  const backendDir = fs.existsSync(path.join(projectDir, "backend"))
-    ? path.join(projectDir, "backend")
-    : projectDir;
+  const backendDir = resolveBackendRoot(projectDir);
+  const frontendDir = resolveFrontendRoot(projectDir);
 
-  const hasBackendTests = fs.readdirSync(backendDir, { recursive: true }).some(f =>
-    /Test\.java$/.test(f)
+  if (!backendDir || !frontendDir) {
+    return {
+      passed: 0,
+      failed: 1,
+      tests: [{
+        name: "Supported project layout detected",
+        status: "failed",
+        details: describeSupportedLayout()
+      }]
+    };
+  }
+
+  const hasBackendTests = safeRecursiveRead(backendDir).some(f =>
+    /Test\.java$/.test(normalizePath(f))
   );
   tests.push({
     name: "Backend unit tests exist",
@@ -260,12 +287,8 @@ function evaluateE2EAndOther(projectDir) {
   });
 
   // Check for test files in frontend
-  const frontendDir = fs.existsSync(path.join(projectDir, "frontend"))
-    ? path.join(projectDir, "frontend")
-    : projectDir;
-
-  const hasFrontendTests = fs.readdirSync(frontendDir, { recursive: true }).some(f =>
-    /\.spec\.ts$/.test(f)
+  const hasFrontendTests = safeRecursiveRead(frontendDir).some(f =>
+    /\.spec\.ts$/.test(normalizePath(f))
   );
   tests.push({
     name: "Frontend unit tests exist",

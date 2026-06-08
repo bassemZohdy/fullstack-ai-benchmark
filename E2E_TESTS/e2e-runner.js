@@ -2,7 +2,6 @@
 
 const fs = require("fs");
 const path = require("path");
-const { spawnSync } = require("child_process");
 const buildValidator = require("./helpers/build-validator");
 const dockerRunner = require("./helpers/docker-runner");
 const apiTester = require("./helpers/api-tester");
@@ -34,71 +33,61 @@ async function runE2ETests(projectDir, backend, frontend, options = {}) {
     frontend
   };
 
-  const timeout = options.timeout || 1800000; // 30 min default for entire E2E
-  const buildTimeout = options.buildTimeout || 900000; // 15 min for builds
-  const composeTimeout = options.composeTimeout || 120000; // 2 min for startup
+  const buildTimeout = Number.isFinite(options.buildTimeout) ? options.buildTimeout : 900000;
+  const composeTimeout = Number.isFinite(options.composeTimeout) ? options.composeTimeout : 120000;
+  const healthTimeout = Number.isFinite(options.healthTimeout) ? options.healthTimeout : 60000;
+  let dockerCleanupNeeded = false;
 
   try {
-    // Phase 1: Build validation
     log("BUILD", "Starting build validation");
     const buildResult = buildValidator.validate(projectDir, backend, frontend, {
       timeout: buildTimeout
     });
     results.phases.build = buildResult;
-    log("BUILD", buildResult.status === "passed" ? "✅ Build passed" : "❌ Build failed");
+    log("BUILD", buildResult.status === "passed" ? "Build passed" : "Build failed");
 
     if (buildResult.status === "failed") {
       results.status = "build_failed";
       return results;
     }
 
-    // Phase 2: Docker compose startup
     log("DOCKER", "Starting docker-compose");
+    dockerCleanupNeeded = true;
     const dockerResult = await dockerRunner.startup(projectDir, {
       timeout: composeTimeout
     });
     results.phases.docker = dockerResult;
-    log("DOCKER", dockerResult.status === "started" ? "✅ Containers started" : "❌ Startup failed");
+    log("DOCKER", dockerResult.status === "started" ? "Containers started" : "Startup failed");
 
     if (dockerResult.status === "failed") {
       results.status = "docker_failed";
       return results;
     }
 
-    // Wait for services to be ready
     log("HEALTH", "Checking service health");
-    const healthCheck = await dockerRunner.waitForHealth(projectDir, { timeout: 60000 });
+    const healthCheck = await dockerRunner.waitForHealth(projectDir, { timeout: healthTimeout });
     results.phases.health = healthCheck;
-    log("HEALTH", healthCheck.ready ? "✅ Services ready" : "❌ Health check timeout");
+    log("HEALTH", healthCheck.ready ? "Services ready" : "Health check timeout");
 
     if (!healthCheck.ready) {
       results.status = "health_failed";
       return results;
     }
 
-    // Phase 3: API testing
     log("API", "Testing API endpoints");
     const apiResult = await apiTester.test(projectDir, backend, {
       timeout: 30000
     });
     results.phases.api = apiResult;
-    log("API", `✅ API tests: ${apiResult.passed}/${apiResult.total} passed`);
+    log("API", `API tests: ${apiResult.passed}/${apiResult.total} passed`);
 
-    // Phase 4: Frontend testing
     log("FRONTEND", "Testing frontend accessibility");
     const frontendResult = await frontendTester.test(projectDir, {
       timeout: 30000
     });
     results.phases.frontend = frontendResult;
-    log("FRONTEND", `✅ Frontend: ${frontendResult.accessible ? "accessible" : "unreachable"}`);
+    log("FRONTEND", `Frontend: ${frontendResult.accessible ? "accessible" : "unreachable"}`);
 
-    // Phase 5: Cleanup
-    log("CLEANUP", "Stopping containers");
-    const cleanupResult = await dockerRunner.shutdown(projectDir);
-    results.phases.cleanup = cleanupResult;
-    log("CLEANUP", "✅ Containers stopped");
-
-    // Calculate overall status
     const allPassed =
       buildResult.status === "passed" &&
       dockerResult.status === "started" &&
@@ -108,22 +97,35 @@ async function runE2ETests(projectDir, backend, frontend, options = {}) {
 
     results.status = allPassed ? "passed" : "partial";
     results.finishedAt = new Date().toISOString();
-
     return results;
   } catch (err) {
     log("ERROR", `Unexpected error: ${err.message}`);
     results.status = "error";
     results.error = err.message;
     results.finishedAt = new Date().toISOString();
-
-    // Try to cleanup on error
-    try {
-      await dockerRunner.shutdown(projectDir);
-    } catch (cleanupErr) {
-      log("CLEANUP", `Warning: Cleanup failed: ${cleanupErr.message}`);
+    return results;
+  } finally {
+    if (dockerCleanupNeeded) {
+      try {
+        log("CLEANUP", "Stopping containers");
+        const cleanupResult = await dockerRunner.shutdown(projectDir);
+        results.phases.cleanup = cleanupResult;
+        log(
+          "CLEANUP",
+          cleanupResult.status === "stopped" ? "Containers stopped" : "Cleanup completed with warnings"
+        );
+      } catch (cleanupErr) {
+        results.phases.cleanup = {
+          status: "warning",
+          error: cleanupErr.message
+        };
+        log("CLEANUP", `Warning: Cleanup failed: ${cleanupErr.message}`);
+      }
     }
 
-    return results;
+    if (!results.finishedAt) {
+      results.finishedAt = new Date().toISOString();
+    }
   }
 }
 
@@ -133,21 +135,26 @@ async function main() {
   const backend = args.backend || "spring-boot";
   const frontend = args.frontend || "angular";
   const resultsFile = args["results-file"] ? path.resolve(args["results-file"]) : null;
+  const buildTimeout = Number(args["build-timeout"]);
+  const composeTimeout = Number(args["compose-timeout"]);
+  const healthTimeout = Number(args["health-timeout"]);
 
   if (!projectDir || !fs.existsSync(projectDir)) {
     console.error("Error: Project directory does not exist");
     process.exit(1);
   }
 
-  const results = await runE2ETests(projectDir, backend, frontend);
+  const results = await runE2ETests(projectDir, backend, frontend, {
+    buildTimeout: Number.isFinite(buildTimeout) && buildTimeout > 0 ? buildTimeout : undefined,
+    composeTimeout: Number.isFinite(composeTimeout) && composeTimeout > 0 ? composeTimeout : undefined,
+    healthTimeout: Number.isFinite(healthTimeout) && healthTimeout > 0 ? healthTimeout : undefined
+  });
 
-  // Output results
   console.log("\n" + "=".repeat(60));
   console.log("E2E TEST RESULTS");
   console.log("=".repeat(60));
   console.log(JSON.stringify(results, null, 2));
 
-  // Save to file if requested
   if (resultsFile) {
     const dir = path.dirname(resultsFile);
     if (!fs.existsSync(dir)) {
@@ -157,12 +164,11 @@ async function main() {
     console.log(`\nResults saved to: ${resultsFile}`);
   }
 
-  // Exit with appropriate code
   process.exit(results.status === "passed" ? 0 : 1);
 }
 
 if (require.main === module) {
-  main().catch(err => {
+  main().catch((err) => {
     console.error("Fatal error:", err);
     process.exit(2);
   });

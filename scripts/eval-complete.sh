@@ -14,21 +14,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 function log_section() {
-  echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
-  echo -e "${BLUE}$1${NC}"
-  echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
+  echo "============================================================"
+  echo "$1"
+  echo "============================================================"
 }
 
 function log_info() {
-  echo -e "${BLUE}ℹ${NC} $1"
+  echo -e "${BLUE}[INFO]${NC} $1"
 }
 
 function log_success() {
-  echo -e "${GREEN}✅${NC} $1"
+  echo -e "${GREEN}[OK]${NC} $1"
 }
 
 function log_error() {
-  echo -e "${RED}❌${NC} $1"
+  echo -e "${RED}[ERR]${NC} $1"
 }
 
 function show_usage() {
@@ -119,26 +119,26 @@ log_info "E2E Testing:    $([ "$SKIP_E2E" = "true" ] && echo "SKIPPED" || echo "
 log_section "Step 1/3: Static Code Evaluation"
 STATIC_RESULTS_FILE="$RESULTS_DIR/static-evaluation.json"
 
-STATIC_CMD="node $PROJECT_ROOT/EVAL/comprehensive-evaluator.js"
-STATIC_CMD="$STATIC_CMD --project-dir $PROJECT_DIR"
-STATIC_CMD="$STATIC_CMD --backend $BACKEND"
-STATIC_CMD="$STATIC_CMD --frontend $FRONTEND"
-STATIC_CMD="$STATIC_CMD --results-file $STATIC_RESULTS_FILE"
+STATIC_CMD=(node "$PROJECT_ROOT/EVAL/comprehensive-evaluator.js")
+STATIC_CMD+=(--project-dir "$PROJECT_DIR")
+STATIC_CMD+=(--backend "$BACKEND")
+STATIC_CMD+=(--frontend "$FRONTEND")
+STATIC_CMD+=(--results-file "$STATIC_RESULTS_FILE")
 
 if [[ -n "$MODEL" ]]; then
-  STATIC_CMD="$STATIC_CMD --model $MODEL"
+  STATIC_CMD+=(--model "$MODEL")
 fi
 if [[ -n "$LEVEL" ]]; then
-  STATIC_CMD="$STATIC_CMD --level $LEVEL"
+  STATIC_CMD+=(--level "$LEVEL")
 fi
 if [[ -n "$PROVIDER" ]]; then
-  STATIC_CMD="$STATIC_CMD --provider $PROVIDER"
+  STATIC_CMD+=(--provider "$PROVIDER")
 fi
 if [[ -n "$HARNESS" ]]; then
-  STATIC_CMD="$STATIC_CMD --harness $HARNESS"
+  STATIC_CMD+=(--harness "$HARNESS")
 fi
 
-if eval "$STATIC_CMD"; then
+if "${STATIC_CMD[@]}"; then
   log_success "Static evaluation completed"
   STATIC_SCORE=$(jq -r '.quality.overall_score' "$STATIC_RESULTS_FILE")
   log_info "Static evaluation score: $STATIC_SCORE/100"
@@ -155,14 +155,14 @@ if [[ "$SKIP_E2E" != "true" ]]; then
   log_section "Step 2/3: End-to-End Testing"
   E2E_RESULTS_FILE="$RESULTS_DIR/e2e-execution.json"
 
-  E2E_CMD="$PROJECT_ROOT/scripts/run-e2e-tests.sh"
-  E2E_CMD="$E2E_CMD --project-dir $PROJECT_DIR"
-  E2E_CMD="$E2E_CMD --backend $BACKEND"
-  E2E_CMD="$E2E_CMD --frontend $FRONTEND"
-  E2E_CMD="$E2E_CMD --results-file $E2E_RESULTS_FILE"
-  E2E_CMD="$E2E_CMD --build-timeout $BUILD_TIMEOUT"
+  E2E_CMD=("$PROJECT_ROOT/scripts/run-e2e-tests.sh")
+  E2E_CMD+=(--project-dir "$PROJECT_DIR")
+  E2E_CMD+=(--backend "$BACKEND")
+  E2E_CMD+=(--frontend "$FRONTEND")
+  E2E_CMD+=(--results-file "$E2E_RESULTS_FILE")
+  E2E_CMD+=(--build-timeout "$BUILD_TIMEOUT")
 
-  if eval "$E2E_CMD"; then
+  if "${E2E_CMD[@]}"; then
     log_success "E2E testing completed"
     E2E_STATUS=$(jq -r '.status' "$E2E_RESULTS_FILE")
     log_info "E2E execution status: $E2E_STATUS"
@@ -179,14 +179,14 @@ fi
 log_section "Step 3/3: Merging Evaluation Results"
 FINAL_RESULTS_FILE="$RESULTS_DIR/evaluation-results.json"
 
-MERGE_CMD="node $PROJECT_ROOT/EVAL/e2e-results-merger.js"
-MERGE_CMD="$MERGE_CMD --static-results $STATIC_RESULTS_FILE"
+MERGE_CMD=(node "$PROJECT_ROOT/EVAL/e2e-results-merger.js")
+MERGE_CMD+=(--static-results "$STATIC_RESULTS_FILE")
 if [[ -n "$E2E_RESULTS_FILE" ]]; then
-  MERGE_CMD="$MERGE_CMD --e2e-results $E2E_RESULTS_FILE"
+  MERGE_CMD+=(--e2e-results "$E2E_RESULTS_FILE")
 fi
-MERGE_CMD="$MERGE_CMD --output $FINAL_RESULTS_FILE"
+MERGE_CMD+=(--output "$FINAL_RESULTS_FILE")
 
-if eval "$MERGE_CMD"; then
+if "${MERGE_CMD[@]}"; then
   log_success "Results merged successfully"
 else
   log_error "Result merging failed"

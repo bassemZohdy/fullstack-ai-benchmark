@@ -1,12 +1,20 @@
 # Full-Stack Project Generation Benchmark
 
-**Status**: ✅ Production-Ready | **Latest**: Integrated E2E evaluation with unified metrics
+**Status**: Operational with known gaps. Runtime E2E evaluation is implemented only for Spring Boot + Angular.
 
-A comprehensive benchmarking system for comparing full-stack project generation across models and specifications, combining **static code analysis** + **E2E runtime testing** into unified quality metrics.
+This repository benchmarks generated full-stack projects by combining static code analysis with optional runtime validation. The system is shell-orchestrated at the repository root and keeps the evaluator self-contained.
+
+## What It Does
+
+- Generates a project from a model, spec level, backend cartridge, and frontend cartridge
+- Runs static evaluation against the generated workspace
+- Runs compile-first E2E validation when supported
+- Merges static and runtime results into a single report
 
 ## Quick Start
 
-### Generate and evaluate a project (quick - 10 sec)
+### Generate and evaluate with static checks only
+
 ```bash
 ./scripts/run-benchmark.sh \
   --model GLM-5.1Z.AI --level overview \
@@ -14,196 +22,98 @@ A comprehensive benchmarking system for comparing full-stack project generation 
   --skip-e2e
 ```
 
-### Full validation with E2E testing (complete - 20-40 min)
+### Full pipeline with E2E validation
+
 ```bash
 ./scripts/run-benchmark.sh \
   --model GLM-5.1Z.AI --level overview \
   --backend spring-boot --frontend angular
 ```
 
-Output: `RESULTS/opencode-glm-5.1/spring-boot-angular/overview/evaluation-results.json`
+The final report is written to:
 
-## System Overview
+`RESULTS/opencode-glm-5.1/spring-boot-angular/overview/evaluation-results.json`
 
-```
-Input: Model, Level, Backend, Frontend
-  ↓
-Generate Project (5-10 min)
-  ├─ render-prompt.sh (templating)
-  └─ generate-project.sh (orchestration)
-  
-Evaluate Project
-  ├─ Quick Mode (--skip-e2e)
-  │  └─ Static Analysis (5-10 sec)
-  │     ├─ Code structure
-  │     ├─ Quality metrics
-  │     └─ Config validation
-  │
-  └─ Complete Mode (default)
-     ├─ Static Analysis (5-10 sec)
-     ├─ E2E Testing (20-40 min)
-     │  ├─ Build validation
-     │  ├─ Docker deployment
-     │  ├─ API testing
-     │  └─ Frontend checks
-     └─ Merge Results → evaluation-results.json
-```
-
-## What's Implemented
-
-✅ **Project Generation**
-- OpenCode and PI harness support
-- Automatic session tracking and retries
-- Activity-based timeout monitoring (90s inactivity threshold)
-
-✅ **Prompt Templating** (Separate, Reusable)
-- Template + spec + cartridge combination
-- Clean separation from generation
-
-✅ **Static Evaluation** (Fast: 5-10 sec)
-- 22 code quality checks
-- Code organization, Docker, Kubernetes, integration readiness
-
-✅ **E2E Testing** (Comprehensive: 20-40 min)
-- Maven/npm build validation
-- Docker Compose deployment and health checks
-- API endpoint testing
-- Frontend accessibility validation
-- Automatic container cleanup
-
-✅ **Unified Metrics** (Integrated)
-- Formula: `(static × 0.7) + (E2E × 0.3) = final score`
-- Quality tiers: Production-Ready | Deployable | Functional | Needs Work
-
-✅ **Supported Stacks**
-- Spring Boot + Angular, Spring Boot + React
-- Node.js + Angular, Node.js + React
-
-## Quality Tiers
-
-| Score | Tier | Meaning |
-|-------|------|---------|
-| 90-100 | Production-Ready | ✅ Deploy with confidence |
-| 75-89 | Deployable | ⚠️ Minor improvements needed |
-| 60-74 | Functional | ⚠️ Significant improvements needed |
-| 0-59 | Needs Work | ❌ Not production-ready |
-
-## Result Files
-
-**evaluation-results.json** (Unified metrics when E2E enabled):
-```json
-{
-  "overall_score": 87,
-  "tier": "Production-Ready",
-  "e2e_impact": 2,
-  "pass_rate_including_e2e": 0.91,
-  "runtime_validation": {
-    "e2e_score": 92,
-    "executed": true,
-    "passed": 18,
-    "failed": 1
-  }
-}
-```
-
-## Repository Structure
+## Execution Flow
 
 ```text
-scripts/
-├── generate-project.sh          # Project generation
-├── render-prompt.sh             # Prompt templating (separate)
-├── eval-generated-project.sh    # Static evaluation
-├── run-e2e-tests.sh            # E2E testing
-├── eval-complete.sh            # Complete pipeline
-└── run-benchmark.sh            # Orchestrator (UPDATED)
-
-EVAL/
-├── comprehensive-evaluator.js   # Static analysis engine
-└── e2e-results-merger.js       # Score merging
-
-E2E_TESTS/
-├── e2e-runner.js               # E2E orchestrator
-└── helpers/                     # Build, Docker, API, Frontend testers
-
-PROMPTS/
-├── overview.md, detailed.md     # Specification levels
-├── templates/project-generation.md
-└── cartridges/                 # Backend and frontend templates
-
-RESULTS/
-└── opencode-<model>/<stack>/<level>/evaluation-results.json
-
-docs/
-└── Comprehensive documentation
+Input: model, level, backend, frontend
+  -> render-prompt.sh
+  -> generate-project.sh
+  -> eval-generated-project.sh
+  -> run-e2e-tests.sh (optional)
+  -> e2e-results-merger.js
 ```
 
-## Evaluation Methods
+Compile-first validation means E2E stops if the project does not build.
 
-### Option 1: Quick Feedback (10 sec)
+## Supported Runtime Evaluation
+
+- E2E evaluation: Spring Boot + Angular
+- Generation-only: Spring Boot + React, Node.js + Angular, Node.js + React
+
+## Scoring
+
+- Static evaluation contributes 70 percent of the merged score
+- E2E evaluation contributes 30 percent when enabled
+- The score tiers are benchmark labels, not deployment guarantees
+
+## Repository Layout
+
+```text
+scripts/      benchmark orchestration scripts
+EVAL/         static evaluator and merge logic
+E2E_TESTS/    runtime validation harness
+PROMPTS/      specs, templates, and cartridges
+WORKSPACE/    generated projects
+RESULTS/      evaluation outputs
+docs/         architecture, scoring, and process docs
+```
+
+## Common Commands
+
+### Static evaluation only
+
 ```bash
 ./scripts/eval-generated-project.sh \
   --project-dir WORKSPACE/opencode-glm-5.1/overview \
-  --backend spring-boot --frontend angular
+  --backend spring-boot --frontend angular \
+  --results-file RESULTS/opencode-glm-5.1/spring-boot-angular/overview/static-evaluation.json
 ```
-Output: Code quality score only
 
-### Option 2: Complete Validation (20-40 min)
+### E2E testing only
+
+```bash
+./scripts/run-e2e-tests.sh \
+  --project-dir WORKSPACE/opencode-glm-5.1/overview \
+  --backend spring-boot --frontend angular \
+  --results-file RESULTS/opencode-glm-5.1/spring-boot-angular/overview/e2e-execution.json
+```
+
+### Full evaluation
+
 ```bash
 ./scripts/eval-complete.sh \
   --project-dir WORKSPACE/opencode-glm-5.1/overview \
   --backend spring-boot --frontend angular \
+  --model GLM-5.1Z.AI --level overview \
   --results-dir RESULTS/opencode-glm-5.1/spring-boot-angular/overview
 ```
-Output: Unified score (static + E2E)
-
-### Option 3: Full Benchmark Pipeline
-```bash
-./scripts/run-benchmark.sh \
-  --model GLM-5.1Z.AI --level overview \
-  --backend spring-boot --frontend angular
-```
-Output: Generation + Evaluation + Complete results
 
 ## Documentation
 
-**Quick Navigation**:
-1. [docs/START.md](./docs/START.md) - Getting started
-2. [docs/SCRIPTS.md](./docs/SCRIPTS.md) - Script reference
-3. [docs/EVALUATION_SYSTEM.md](./docs/EVALUATION_SYSTEM.md) - How evaluation works
-4. [docs/EVALUATION_METRICS.md](./docs/EVALUATION_METRICS.md) - Scoring details
-5. [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) - System design
-6. [docs/RESULTS_FORMAT.md](./docs/RESULTS_FORMAT.md) - Output format
-7. [docs/PROJECT_STATUS.md](./docs/PROJECT_STATUS.md) - Completion status
-
-**Component Guides**:
-- E2E Testing: [docs/E2E_TESTING.md](./docs/E2E_TESTING.md)
-- Metrics & Scoring: [docs/EVALUATION_METRICS.md](./docs/EVALUATION_METRICS.md)
-- Integration: [docs/EVALUATION_SYSTEM.md](./docs/EVALUATION_SYSTEM.md)
-
-## Performance Profile
-
-| Scenario | Duration | Components |
-|----------|----------|------------|
-| Quick (--skip-e2e) | ~10 min | Generate + Static Analysis |
-| Complete | ~35-50 min | Generate + Static + E2E + Merge |
-| Static Only | ~10 sec | Code analysis (no generation) |
-| E2E Only | ~20-40 min | Build + Docker + API tests |
-
-## Integration with CI/CD
-
-```bash
-# Quality gate example
-./scripts/run-benchmark.sh ... && \
-SCORE=$(jq '.quality.overall_score' RESULTS/*/evaluation-results.json) && \
-[ $SCORE -ge 75 ] || exit 1
-```
+- [docs/START.md](./docs/START.md)
+- [docs/SCRIPTS.md](./docs/SCRIPTS.md)
+- [docs/EVALUATION_SYSTEM.md](./docs/EVALUATION_SYSTEM.md)
+- [docs/EVALUATION_METRICS.md](./docs/EVALUATION_METRICS.md)
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- [docs/RESULTS_FORMAT.md](./docs/RESULTS_FORMAT.md)
+- [docs/PROJECT_STATUS.md](./docs/PROJECT_STATUS.md)
+- [docs/E2E_TESTING.md](./docs/E2E_TESTING.md)
 
 ## Project Rules
 
-See [CLAUDE.md](./CLAUDE.md) for project contract, [AGENTS.md](./AGENTS.md) for commands.
-
-**Key points**:
 - Harness: OpenCode for generation
-- Validation: Z.ai GLM (GLM-5.1Z.AI) + runtime E2E
+- Validation: Z.ai GLM and runtime E2E
 - Specs: `overview` and `detailed` only
-- Results include both static and runtime metrics
+- Runtime evaluation is currently implemented for Spring Boot + Angular only

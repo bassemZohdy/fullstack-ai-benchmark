@@ -88,23 +88,26 @@ log_info "Backend:    $BACKEND"
 log_info "Frontend:   $FRONTEND"
 
 # Build E2E command
-E2E_CMD="node E2E_TESTS/e2e-runner.js --project-dir $PROJECT_DIR --backend $BACKEND --frontend $FRONTEND"
+E2E_CMD=(node "E2E_TESTS/e2e-runner.js")
+E2E_CMD+=(--project-dir "$PROJECT_DIR")
+E2E_CMD+=(--backend "$BACKEND")
+E2E_CMD+=(--frontend "$FRONTEND")
 
 if [[ -n "$RESULTS_FILE" ]]; then
-  E2E_CMD="$E2E_CMD --results-file $RESULTS_FILE"
+  E2E_CMD+=(--results-file "$RESULTS_FILE")
 fi
 
 if [[ -n "$BUILD_TIMEOUT" ]]; then
-  E2E_CMD="$E2E_CMD --build-timeout $BUILD_TIMEOUT"
+  E2E_CMD+=(--build-timeout "$BUILD_TIMEOUT")
 fi
 
 if [[ -n "$COMPOSE_TIMEOUT" ]]; then
-  E2E_CMD="$E2E_CMD --compose-timeout $COMPOSE_TIMEOUT"
+  E2E_CMD+=(--compose-timeout "$COMPOSE_TIMEOUT")
 fi
 
 # Run E2E tests
 log_section "Starting E2E Tests"
-if eval "$E2E_CMD"; then
+if "${E2E_CMD[@]}"; then
   log_success "E2E tests passed"
   exit 0
 else

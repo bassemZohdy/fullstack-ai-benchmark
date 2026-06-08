@@ -2,51 +2,46 @@
 
 ## Design Principles
 
-- Pure shell orchestration at the repository root
+- Shell orchestration at the repository root
 - No root `package.json`
-- Template-driven prompt composition
+- Prompt generation is template-driven
 - One active generated project per model and spec level
-- Evaluation is self-contained and runs from the repository tree
+- Evaluation is self-contained inside the repository tree
 
 ## Directory Structure
 
 ```text
-benchmark-ai/
-├── scripts/
-│   ├── generate-project.sh
-│   ├── eval-generated-project.sh
-│   ├── run-benchmark.sh
-│   └── test-setup.sh
-├── EVAL/
-│   ├── comprehensive-evaluator.js
-│   ├── cartridges/
-│   └── phases/
-├── PROMPTS/
-│   ├── overview.md
-│   ├── detailed.md
-│   ├── templates/project-generation.md
-│   └── cartridges/
-├── WORKSPACE/
-│   └── opencode-<model-slug>/<level>/
-├── RESULTS/
-│   └── opencode-<model-slug>/<backend>-<frontend>/<level>/evaluation-results.json
-└── docs/
+fullstack-ai-benchmark/
+|-- scripts/
+|   |-- generate-project.sh
+|   |-- eval-generated-project.sh
+|   |-- run-benchmark.sh
+|   `-- test-setup.sh
+|-- EVAL/
+|   |-- comprehensive-evaluator.js
+|   |-- e2e-results-merger.js
+|   |-- cartridges/
+|   `-- phases/
+|-- E2E_TESTS/
+|   |-- e2e-runner.js
+|   `-- helpers/
+|-- PROMPTS/
+|-- WORKSPACE/
+|-- RESULTS/
+`-- docs/
 ```
 
 ## Execution Flow
 
 ```text
 run-benchmark.sh
-  ├─ generate-project.sh
-  │  ├─ Select overview.md or detailed.md
-  │  ├─ Load backend/frontend cartridges
-  │  ├─ Render PROMPTS/templates/project-generation.md
-  │  ├─ Reset WORKSPACE/opencode-<model-slug>/<level>/
-  │  └─ Run opencode run --file <rendered-prompt> --dir <workspace>
-  └─ eval-generated-project.sh
-     ├─ Run EVAL/comprehensive-evaluator.js
-     └─ Save RESULTS/opencode-<model-slug>/<backend>-<frontend>/<level>/evaluation-results.json
+  -> generate-project.sh
+  -> eval-generated-project.sh
+  -> run-e2e-tests.sh (optional)
+  -> e2e-results-merger.js (when runtime results exist)
 ```
+
+The E2E path is compile-first. If the generated project fails to build, the runtime phase stops before Docker startup or API checks.
 
 ## Components
 
@@ -54,35 +49,39 @@ run-benchmark.sh
 
 Generates the workspace for one model and one spec level.
 
-- Builds the rendered prompt from the shared template, selected spec, and cartridges
+- Renders the prompt from the shared template, selected spec, and cartridges
 - Clears the active workspace before generation
 - Preserves `.opencode-session-id`
 - Writes `.opencode-session` with attempt history and exported token/cost metadata
 
 ### scripts/eval-generated-project.sh
 
-Evaluates the generated project with the comprehensive evaluator.
+Runs static evaluation over the generated project.
 
-- Fails fast when the evaluator is missing, the project is missing, or no application structure is recognized
+- Fails fast when the evaluator is missing, the project is missing, or no recognizable application structure exists
 - Writes normalized JSON results
 
-### PROMPTS/
+### E2E_TESTS/
 
-Prompt inputs are composed at runtime from:
+Contains the runtime validation harness.
 
-```text
-PROMPTS/<level>.md
-PROMPTS/templates/project-generation.md
-PROMPTS/cartridges/backend/<backend>.md
-PROMPTS/cartridges/frontend/<frontend>.md
-```
+- Validates build output first
+- Starts Docker Compose only after a successful build
+- Runs health checks, API tests, and frontend checks
+- Always attempts cleanup after Docker startup
+
+## Supported Runtime Scope
+
+- E2E evaluation is currently implemented for Spring Boot + Angular only
+- Other backend/frontend combinations remain generation-only until evaluator support is added
 
 ## Key Decisions
 
 | Decision | Why |
 | --- | --- |
 | Generic scripts | Support any allowed model, level, backend, and frontend |
-| No root Node.js | Keeps the root repository lightweight and script-driven |
-| Template prompt composition | Prevents duplicated stack-specific prompt files |
+| No root Node.js package | Keeps the repository lightweight and script-driven |
+| Template prompt composition | Avoids duplicated stack-specific prompt files |
 | Separate generation and evaluation | Keeps outputs inspectable and repeatable |
-| One active workspace per model and level | Supports direct `overview` vs `detailed` comparison |
+| One active workspace per model and level | Supports direct overview vs detailed comparison |
+| Compile-first E2E flow | Prevents runtime testing of projects that do not build |

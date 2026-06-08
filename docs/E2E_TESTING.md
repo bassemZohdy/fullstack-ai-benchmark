@@ -127,12 +127,10 @@ npm run test:e2e -- --project-dir ../WORKSPACE/opencode-glm-5.1/overview \
 
 ## Supported Stacks
 
-✅ Spring Boot + Angular  
-✅ Spring Boot + React  
-✅ Node.js + Angular  
-✅ Node.js + React  
+✅ End-to-end evaluation: Spring Boot + Angular  
+✅ Generation-only: Spring Boot + React, Node.js + Angular, Node.js + React
 
-Other combinations report as "not implemented".
+Other combinations report as "not implemented" in the runtime evaluators.
 
 ## Parallelization
 
