@@ -54,23 +54,33 @@ Full benchmark with all selectors (model, level, backend, frontend).
 ```
 Retries generation and resumes with `WORKSPACE/opencode-<model-slug>/<level>/.opencode-session-id` when available. Detailed retry metadata written to `.opencode-session`.
 
-**Static evaluation** (code structure and quality):
+**Complete evaluation** (static + E2E + merged metrics):
+```bash
+./scripts/eval-complete.sh \
+  --project-dir WORKSPACE/opencode-glm-5.1/overview \
+  --backend spring-boot --frontend angular \
+  --model GLM-5.1Z.AI --level overview \
+  --results-dir RESULTS/opencode-glm-5.1/spring-boot-angular/overview
+```
+Runs static analysis, E2E tests, merges results into unified metrics (20-40 min per project).
+
+**Static evaluation only** (code structure and quality):
 ```bash
 ./scripts/eval-generated-project.sh \
   --project-dir WORKSPACE/opencode-glm-5.1/overview \
   --backend spring-boot --frontend angular \
-  --results-file RESULTS/opencode-glm-5.1/spring-boot-angular/overview/static-results.json
+  --results-file RESULTS/opencode-glm-5.1/spring-boot-angular/overview/static-evaluation.json
 ```
-Checks code organization, Docker config, build tools (5-10 seconds).
+Checks code organization, Docker config, build tools (5-10 seconds, no runtime testing).
 
-**E2E testing** (build, deploy, and API validation):
+**E2E testing only** (build, deploy, and API validation):
 ```bash
 ./scripts/run-e2e-tests.sh \
   --project-dir WORKSPACE/opencode-glm-5.1/overview \
   --backend spring-boot --frontend angular \
-  --results-file RESULTS/opencode-glm-5.1/spring-boot-angular/overview/e2e-results.json
+  --results-file RESULTS/opencode-glm-5.1/spring-boot-angular/overview/e2e-execution.json
 ```
-Builds projects, runs docker-compose, tests API/frontend (20-40 min per project).
+Builds projects, runs docker-compose, tests API/frontend (20-40 min per project, no code quality checks).
 
 **Local syntax check**:
 ```bash
