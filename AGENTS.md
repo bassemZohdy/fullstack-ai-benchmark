@@ -54,9 +54,27 @@ Full benchmark with all selectors (model, level, backend, frontend).
 ```
 Retries generation and resumes with `WORKSPACE/opencode-<model-slug>/<level>/.opencode-session-id` when available. Detailed retry metadata written to `.opencode-session`.
 
+**Static evaluation** (code structure and quality):
+```bash
+./scripts/eval-generated-project.sh \
+  --project-dir WORKSPACE/opencode-glm-5.1/overview \
+  --backend spring-boot --frontend angular \
+  --results-file RESULTS/opencode-glm-5.1/spring-boot-angular/overview/static-results.json
+```
+Checks code organization, Docker config, build tools (5-10 seconds).
+
+**E2E testing** (build, deploy, and API validation):
+```bash
+./scripts/run-e2e-tests.sh \
+  --project-dir WORKSPACE/opencode-glm-5.1/overview \
+  --backend spring-boot --frontend angular \
+  --results-file RESULTS/opencode-glm-5.1/spring-boot-angular/overview/e2e-results.json
+```
+Builds projects, runs docker-compose, tests API/frontend (20-40 min per project).
+
 **Local syntax check**:
 ```bash
-bash -n scripts/*.sh && node --check EVAL/comprehensive-evaluator.js
+bash -n scripts/*.sh && node --check EVAL/comprehensive-evaluator.js E2E_TESTS/e2e-runner.js E2E_TESTS/helpers/*.js
 ```
 Validates script and evaluator syntax.
 
@@ -68,7 +86,24 @@ Use concise Markdown in docs. Avoid invented benchmark scores; use `TBD` or `nul
 
 ## Testing Guidelines
 
-Evaluation is automated through `scripts/eval-generated-project.sh`, which calls `EVAL/evaluate.js`. Generated output with no recognizable application structure must fail. Use `overview` and `detailed` as the only built-in spec levels. Keep future test files isolated under `EVAL/` or `E2E_TESTS/`.
+### Static Evaluation
+Automated through `scripts/eval-generated-project.sh`, which calls `EVAL/comprehensive-evaluator.js`. Checks code structure, Docker configuration, and build tools. Generated output with no recognizable application structure must fail.
+
+### E2E Testing
+End-to-end testing validates actual runtime behavior: builds projects, runs `docker compose up`, and tests API/frontend availability. Run via `scripts/run-e2e-tests.sh`:
+
+```bash
+./scripts/run-e2e-tests.sh \
+  --project-dir WORKSPACE/opencode-glm-5.1/overview \
+  --backend spring-boot \
+  --frontend angular \
+  --results-file RESULTS/opencode-glm-5.1/spring-boot-angular/overview/e2e-results.json
+```
+
+E2E tests take 20-40 minutes per project (8-15 min builds, 2-3 min Docker startup, 1-2 min tests). Run sequentially or in parallel using separate terminal sessions.
+
+### Spec Levels
+Use `overview` and `detailed` as the only built-in spec levels. Keep all test files isolated under `EVAL/` or `E2E_TESTS/`.
 
 ## Commit & Pull Request Guidelines
 
