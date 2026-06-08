@@ -1,0 +1,4 @@
+interface:
+  display_name: "Evaluation Workflow"
+  short_description: "Run evaluation and merge benchmark results"
+  default_prompt: "Use $evaluation-workflow to run static evaluation, merged evaluation, or interpret result files."

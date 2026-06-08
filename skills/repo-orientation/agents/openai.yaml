@@ -1,0 +1,4 @@
+interface:
+  display_name: "Repo Orientation"
+  short_description: "Navigate repo paths and benchmark workflows"
+  default_prompt: "Use $repo-orientation to find the right script, path, or doc before changing the benchmark repo."

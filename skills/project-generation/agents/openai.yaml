@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project Generation"
+  short_description: "Generate projects with session tracking"
+  default_prompt: "Use $project-generation to run project generation, manage retries, and inspect the active workspace."

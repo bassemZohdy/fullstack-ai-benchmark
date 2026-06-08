@@ -1,0 +1,4 @@
+interface:
+  display_name: "E2E Testing"
+  short_description: "Run E2E validation and debug failures"
+  default_prompt: "Use $e2e-testing to run runtime validation, diagnose build failures, and inspect E2E logs."

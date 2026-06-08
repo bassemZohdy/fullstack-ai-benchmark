@@ -1,0 +1,4 @@
+interface:
+  display_name: "Docs Maintenance"
+  short_description: "Keep docs aligned with benchmark reality"
+  default_prompt: "Use $docs-maintenance to update README and docs so they match the implemented benchmark behavior."

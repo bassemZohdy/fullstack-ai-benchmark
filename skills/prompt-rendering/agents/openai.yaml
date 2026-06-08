@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prompt Rendering"
+  short_description: "Render prompts from specs and cartridges"
+  default_prompt: "Use $prompt-rendering to render, inspect, or verify benchmark prompts before generation."
