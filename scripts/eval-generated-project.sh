@@ -162,7 +162,7 @@ fi
 
 if [ "$QUIET" != "true" ]; then
   echo ""
-  echo -e "${BLUE}Command: node EVAL/$(basename $EVAL_SCRIPT)${NC}"
+  echo -e "${BLUE}Command: node EVAL/$(basename "$EVAL_SCRIPT")${NC}"
   echo ""
 fi
 

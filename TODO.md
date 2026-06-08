@@ -10,7 +10,7 @@ Priority guide:
 
 ## Open Work
 
-### P2 Hardening
+### P3 Cleanup
 
 None at the moment.
 
@@ -39,3 +39,7 @@ None at the moment.
 - [x] Document the reset workflow for benchmark reruns.
 - [x] Investigate the E2E health timeout on a clean rerun.
 - [x] Align the API probe with the generated Spring Boot todo contract.
+- [x] Normalize benchmark shell scripts to LF line endings so Unix shells and shellcheck can parse them.
+- [x] Fix `scripts/test-setup.sh` summary tracking so it does not rely on a stale exit code.
+- [x] Quote the `basename` call in `scripts/eval-generated-project.sh` to avoid word-splitting warnings.
+- [x] Reduce the remaining shellcheck warnings in the benchmark scripts.

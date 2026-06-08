@@ -65,7 +65,6 @@ NC='\033[0m'
 # Harness abstraction: Resolve CLI for any harness
 resolve_harness_cli() {
   local harness="$1"
-  local cli=""
 
   case "$harness" in
     opencode)
@@ -438,7 +437,7 @@ cleanup_temp_files() {
 }
 
 # Render prompt using dedicated templating script
-"$SCRIPT_DIR/render-prompt.sh" \
+if ! "$SCRIPT_DIR/render-prompt.sh" \
   --template "$TEMPLATE_FILE" \
   --spec "$SPEC_FILE" \
   --backend-cartridge "$BACKEND_CARTRIDGE" \
@@ -446,10 +445,8 @@ cleanup_temp_files() {
   --level "$LEVEL" \
   --backend "$BACKEND" \
   --frontend "$FRONTEND" \
-  --output "$RENDERED_PROMPT"
-
-if [ $? -ne 0 ]; then
-  echo -e "${RED}❌ ERROR: Failed to render prompt${NC}"
+  --output "$RENDERED_PROMPT"; then
+  echo -e "${RED}ERROR: Failed to render prompt${NC}"
   cleanup_temp_files
   exit 1
 fi
@@ -714,7 +711,8 @@ monitor_process_with_activity() {
   local last_file_count=0
 
   while kill -0 "$cmd_pid" 2>/dev/null; do
-    local current_file_count=$(find "$output_dir" -type f 2>/dev/null | wc -l)
+    local current_file_count
+    current_file_count=$(find "$output_dir" -type f 2>/dev/null | wc -l)
 
     if [ "$current_file_count" -gt "$last_file_count" ]; then
       last_file_count="$current_file_count"
@@ -847,7 +845,7 @@ else
     # Verify output exists
     if [ -d "$OUTPUT_DIR" ] && [ "$(ls -A "$OUTPUT_DIR")" ]; then
       echo -e "${GREEN}✅ Generated files verified${NC}"
-      ls -lah "$OUTPUT_DIR" | head -15
+      find "$OUTPUT_DIR" -maxdepth 1 -mindepth 1 | sort | head -15
     else
       echo -e "${YELLOW}⚠️  Warning: Output directory appears empty${NC}"
     fi

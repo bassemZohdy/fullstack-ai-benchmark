@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+# shellcheck disable=SC2034
 BENCHMARK_LEVELS=("overview" "detailed")
 BENCHMARK_BACKENDS=("node-js" "spring-boot" "quarkus")
 BENCHMARK_FRONTENDS=("react" "angular")

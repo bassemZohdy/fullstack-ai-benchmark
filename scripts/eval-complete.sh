@@ -6,7 +6,6 @@ set -euo pipefail
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
@@ -167,8 +166,6 @@ fi
 
 # Step 2: E2E testing (optional)
 E2E_RESULTS_FILE=""
-E2E_SCORE=0
-
 if [[ "$SKIP_E2E" != "true" ]]; then
   if ! benchmark_is_runtime_supported "$BACKEND" "$FRONTEND"; then
     log_error "Unsupported E2E combination: $BACKEND + $FRONTEND"

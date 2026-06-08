@@ -62,6 +62,12 @@ Validates local setup and performs GLM workflow generation with `overview`.
 
 By default, generated setup files are removed after validation. Use `--keep-test-files` only when you need to inspect the temporary output.
 
+## cleanup-benchmark.sh
+
+Removes generated workspace and result outputs for one benchmark scope.
+
+Use `--scope workspace`, `--scope results`, or `--scope all` when you need to reset a model/backend/frontend/level combination before rerunning a benchmark.
+
 ## Output Paths
 
 ```text

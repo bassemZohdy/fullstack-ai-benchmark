@@ -38,6 +38,7 @@ PROVIDER="z-ai"
 AUTO_APPROVE="true"
 RETRIES="3"
 KEEP_TEST_FILES="false"
+OVERALL_SUCCESS="true"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -221,13 +222,15 @@ if ./scripts/generate-project.sh \
   echo ""
 
   # Verify generated files
-  if [ -d "$TEST_OUTPUT_DIR" ] && [ "$(ls -A "$TEST_OUTPUT_DIR")" ]; then
+  if [ -d "$TEST_OUTPUT_DIR" ] && [ "$(find "$TEST_OUTPUT_DIR" -mindepth 1 -maxdepth 1 2>/dev/null)" ]; then
     echo -e "${GREEN}✅ Generated files exist${NC}"
-    echo -e "   Files: $(ls -1 "$TEST_OUTPUT_DIR" | wc -l) items"
-    ls -1 "$TEST_OUTPUT_DIR" | head -5
-    [ "$(ls -1 "$TEST_OUTPUT_DIR" | wc -l)" -gt 5 ] && echo "   ... and more"
+    FILE_COUNT=$(find "$TEST_OUTPUT_DIR" -type f 2>/dev/null | wc -l)
+    echo -e "   Files: ${FILE_COUNT} items"
+    find "$TEST_OUTPUT_DIR" -maxdepth 1 -mindepth 1 | sort | head -5
+    [ "$FILE_COUNT" -gt 5 ] && echo "   ... and more"
   else
     echo -e "${YELLOW}⚠️  Generated directory appears empty${NC}"
+    OVERALL_SUCCESS="false"
   fi
 else
   echo -e "${RED}❌ Generation test FAILED${NC}"
@@ -247,9 +250,11 @@ if [ -d "E2E_TESTS" ]; then
     check_item "E2E_TESTS/package.json exists" "pass"
   else
     check_item "E2E_TESTS/package.json exists" "fail"
+    OVERALL_SUCCESS="false"
   fi
 else
   check_item "E2E_TESTS/ directory exists" "fail"
+  OVERALL_SUCCESS="false"
 fi
 
 if [ -d "EVAL" ]; then
@@ -259,9 +264,11 @@ if [ -d "EVAL" ]; then
     check_item "EVAL/package.json exists" "pass"
   else
     check_item "EVAL/package.json exists" "fail"
+    OVERALL_SUCCESS="false"
   fi
 else
   check_item "EVAL/ directory exists" "fail"
+  OVERALL_SUCCESS="false"
 fi
 
 echo ""
@@ -281,6 +288,7 @@ if [ -f "scripts/eval-generated-project.sh" ]; then
   fi
 else
   check_item "eval-generated-project.sh exists" "fail"
+  OVERALL_SUCCESS="false"
 fi
 
 echo ""
@@ -291,7 +299,7 @@ echo -e "${CYAN}Test Summary${NC}"
 echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
 echo ""
 
-if [ $? -eq 0 ]; then
+if [ "$OVERALL_SUCCESS" == "true" ]; then
   echo -e "${GREEN}✅ ALL INFRASTRUCTURE TESTS PASSED${NC}"
   echo ""
   echo "You can now run benchmarks with all required selectors:"
