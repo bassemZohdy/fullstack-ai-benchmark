@@ -35,7 +35,7 @@ async function runE2ETests(projectDir, backend, frontend, options = {}) {
 
   const buildTimeout = Number.isFinite(options.buildTimeout) ? options.buildTimeout : 900000;
   const composeTimeout = Number.isFinite(options.composeTimeout) ? options.composeTimeout : 120000;
-  const healthTimeout = Number.isFinite(options.healthTimeout) ? options.healthTimeout : 60000;
+  const healthTimeout = Number.isFinite(options.healthTimeout) ? options.healthTimeout : 120000;
   let dockerCleanupNeeded = false;
 
   try {

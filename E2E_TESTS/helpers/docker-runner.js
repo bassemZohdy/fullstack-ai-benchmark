@@ -85,9 +85,9 @@ function probePort(port, timeout = 1000) {
 }
 
 async function waitForHealth(projectDir, options = {}) {
-  const timeout = options.timeout || 60000;
+  const timeout = options.timeout || 120000;
   const startTime = Date.now();
-  const ports = [8080, 8081, 3000, 8000, 5000];
+  const ports = [80, 8080, 8081, 4200, 3000, 8000, 5000];
 
   while (Date.now() - startTime <= timeout) {
     const probes = await Promise.all(ports.map((port) => probePort(port)));

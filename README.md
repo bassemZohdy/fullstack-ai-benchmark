@@ -2,18 +2,18 @@
 
 **Status**: Operational with known gaps. Runtime E2E evaluation is implemented only for Spring Boot + Angular.
 
-This repository benchmarks generated full-stack projects by combining static code analysis with optional runtime validation. The system is shell-orchestrated at the repository root and keeps the evaluator self-contained.
+This repository benchmarks generated full-stack projects by combining static code analysis with compile-first runtime validation.
 
 ## What It Does
 
 - Generates a project from a model, spec level, backend cartridge, and frontend cartridge
 - Runs static evaluation against the generated workspace
-- Runs compile-first E2E validation when supported
+- Runs runtime validation when the stack is supported
 - Merges static and runtime results into a single report
 
 ## Quick Start
 
-### Generate and evaluate with static checks only
+### Static checks only
 
 ```bash
 ./scripts/run-benchmark.sh \
@@ -22,17 +22,24 @@ This repository benchmarks generated full-stack projects by combining static cod
   --skip-e2e
 ```
 
-### Full pipeline with E2E validation
+### Full pipeline with runtime validation
 
 ```bash
 ./scripts/run-benchmark.sh \
   --model GLM-5.1Z.AI --level overview \
-  --backend spring-boot --frontend angular
+  --backend spring-boot --frontend angular \
+  --reset
 ```
 
 The final report is written to:
 
 `RESULTS/opencode-glm-5.1/spring-boot-angular/overview/evaluation-results.json`
+
+## Reset Workflow
+
+- `--reset` removes the selected workspace and result directory before the benchmark starts
+- `--health-timeout` can be increased when the supported runtime stack needs a longer readiness window
+- Generation now defaults to a longer timeout so clean reruns can finish without manual tuning
 
 ## Execution Flow
 
@@ -52,6 +59,13 @@ Compile-first validation means E2E stops if the project does not build.
 - E2E evaluation: Spring Boot + Angular
 - Generation-only: Spring Boot + React, Node.js + Angular, Node.js + React
 
+The runtime probe for the supported stack checks the generated todo API contract:
+
+- `GET /api/todos`
+- `POST /api/todos`
+- `GET /api/todos/{id}`
+- `DELETE /api/todos/{id}`
+
 ## Scoring
 
 - Static evaluation contributes 70 percent of the merged score
@@ -68,36 +82,6 @@ PROMPTS/      specs, templates, and cartridges
 WORKSPACE/    generated projects
 RESULTS/      evaluation outputs
 docs/         architecture, scoring, and process docs
-```
-
-## Common Commands
-
-### Static evaluation only
-
-```bash
-./scripts/eval-generated-project.sh \
-  --project-dir WORKSPACE/opencode-glm-5.1/overview \
-  --backend spring-boot --frontend angular \
-  --results-file RESULTS/opencode-glm-5.1/spring-boot-angular/overview/static-evaluation.json
-```
-
-### E2E testing only
-
-```bash
-./scripts/run-e2e-tests.sh \
-  --project-dir WORKSPACE/opencode-glm-5.1/overview \
-  --backend spring-boot --frontend angular \
-  --results-file RESULTS/opencode-glm-5.1/spring-boot-angular/overview/e2e-execution.json
-```
-
-### Full evaluation
-
-```bash
-./scripts/eval-complete.sh \
-  --project-dir WORKSPACE/opencode-glm-5.1/overview \
-  --backend spring-boot --frontend angular \
-  --model GLM-5.1Z.AI --level overview \
-  --results-dir RESULTS/opencode-glm-5.1/spring-boot-angular/overview
 ```
 
 ## Documentation

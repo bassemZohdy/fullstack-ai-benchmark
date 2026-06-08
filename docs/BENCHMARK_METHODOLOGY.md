@@ -8,7 +8,6 @@ This benchmark evaluates generated full-stack projects with automated checks and
 - Validation provider: Z.ai
 - Matrix provider: OpenRouter
 - Validation model: `GLM-5.1Z.AI`
-- Initial matrix models: `kimi/2.6`, `minimax/1.5`, `xiaomi/mimo-2.5`
 
 ## Metric Groups
 
@@ -43,6 +42,15 @@ The evaluator checks for:
 - Backend/frontend integration signals
 - Backend and frontend test files
 
+The runtime evaluator checks:
+
+- Build first
+- Docker startup
+- Health/readiness
+- Todo API contract
+- Frontend availability
+- Cleanup
+
 ## Telemetry
 
 Generation telemetry is captured by the generation script and stored in `.opencode-session`:
@@ -67,11 +75,3 @@ The benchmark fails immediately when:
 ## Placeholder Values
 
 Comparison tables should use `TBD` until actual runs produce values.
-
-```text
-Model              | Avg Quality | Avg Time | Avg Cost | Time/Quality | Cost/Quality
--------------------|-------------|----------|----------|--------------|-------------
-Kimi K2.6          | TBD         | TBD      | TBD      | TBD          | TBD
-MiniMax M3         | TBD         | TBD      | TBD      | TBD          | TBD
-Xiaomi MiMo 2.5    | TBD         | TBD      | TBD      | TBD          | TBD
-```

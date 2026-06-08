@@ -34,10 +34,12 @@
 #     --provider      Model provider namespace (default: z-ai)
 #     --auto-approve  Auto-approve OpenCode permissions (default: true)
 #     --retries       Generation attempts before failing (default: 3)
-#     --timeout       Generation timeout (default: 120)
+#     --timeout       Generation timeout (default: 600)
+#     --health-timeout E2E health timeout in milliseconds (default: 120000)
 #     --skip-gen      Skip generation, only evaluate
 #     --skip-eval     Skip evaluation, only generate
 #     --skip-e2e      Skip E2E testing (static analysis only)
+#     --reset         Clean workspace and results before each benchmark run
 #     --quiet         Suppress detailed output
 ################################################################################
 
@@ -68,7 +70,9 @@ RETRIES="3"
 SKIP_GEN="false"
 SKIP_EVAL="false"
 SKIP_E2E="false"
-TIMEOUT="120"
+RESET="false"
+TIMEOUT="600"
+HEALTH_TIMEOUT="120000"
 QUIET="false"
 
 # Parse arguments
@@ -118,8 +122,16 @@ while [[ $# -gt 0 ]]; do
       SKIP_E2E="true"
       shift
       ;;
+    --reset)
+      RESET="true"
+      shift
+      ;;
     --timeout)
       TIMEOUT="$2"
+      shift 2
+      ;;
+    --health-timeout)
+      HEALTH_TIMEOUT="$2"
       shift 2
       ;;
     --quiet)
@@ -186,6 +198,8 @@ if [ "$QUIET" != "true" ]; then
   echo -e "Skip Gen:       ${YELLOW}${SKIP_GEN}${NC}"
   echo -e "Skip Eval:      ${YELLOW}${SKIP_EVAL}${NC}"
   echo -e "Skip E2E:       ${YELLOW}${SKIP_E2E}${NC}"
+  echo -e "Reset:          ${YELLOW}${RESET}${NC}"
+  echo -e "Health TO:      ${YELLOW}${HEALTH_TIMEOUT}ms${NC}"
   echo ""
 fi
 
@@ -208,6 +222,26 @@ for test_case in "${FILTERED_TESTS[@]}"; do
   MODEL_SLUG="$(slugify_model "$model")"
   WORKSPACE_DIR="WORKSPACE/${MODEL_SLUG}/${level}"
   RESULTS_DIR="RESULTS/${MODEL_SLUG}/${backend}-${frontend}/${level}/"
+
+  if [ "$RESET" == "true" ]; then
+    if [ "$QUIET" != "true" ]; then
+      echo -e "${BLUE}→ Resetting workspace and results...${NC}"
+    fi
+
+    if ! "$SCRIPT_DIR/cleanup-benchmark.sh" \
+      --model "$model" \
+      --level "$level" \
+      --backend "$backend" \
+      --frontend "$frontend" \
+      --harness "$HARNESS" \
+      --scope all; then
+      if [ "$QUIET" != "true" ]; then
+        echo -e "${RED}❌ Cleanup failed${NC}"
+      fi
+      FAILED=$((FAILED + 1))
+      continue
+    fi
+  fi
 
   # Harness-specific session file naming
   SESSION_FILE_SUFFIX=""
@@ -242,6 +276,18 @@ for test_case in "${FILTERED_TESTS[@]}"; do
     else
       if [ "$QUIET" != "true" ]; then
         echo -e "${RED}❌ Generation failed${NC}"
+      fi
+      if [ "$RESET" == "true" ]; then
+        if [ "$QUIET" != "true" ]; then
+          echo -e "${BLUE}→ Cleaning partial workspace after generation failure...${NC}"
+        fi
+        "$SCRIPT_DIR/cleanup-benchmark.sh" \
+          --model "$model" \
+          --level "$level" \
+          --backend "$backend" \
+          --frontend "$frontend" \
+          --harness "$HARNESS" \
+          --scope workspace >/dev/null 2>&1 || true
       fi
       FAILED=$((FAILED + 1))
       continue
@@ -290,7 +336,8 @@ for test_case in "${FILTERED_TESTS[@]}"; do
         --level "$level" \
         --provider "$PROVIDER" \
         --harness "$HARNESS" \
-        --results-dir "$RESULTS_DIR"; then
+        --results-dir "$RESULTS_DIR" \
+        --health-timeout "$HEALTH_TIMEOUT"; then
         if [ "$QUIET" != "true" ]; then
           FINAL_SCORE=$(jq -r '.quality.overall_score' "$RESULTS_DIR/evaluation-results.json" 2>/dev/null || echo "N/A")
           FINAL_TIER=$(jq -r '.quality.tier' "$RESULTS_DIR/evaluation-results.json" 2>/dev/null || echo "N/A")

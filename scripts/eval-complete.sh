@@ -49,6 +49,8 @@ OPTIONS:
   --results-dir <dir>       Directory for evaluation results (required)
   --skip-e2e                Skip E2E testing, only run static eval
   --build-timeout <ms>      E2E build timeout (default: 900000)
+  --compose-timeout <ms>    Docker Compose startup timeout (default: 120000)
+  --health-timeout <ms>     Health/readiness timeout (default: 120000)
   --help                    Show this help message
 
 Example:
@@ -70,6 +72,9 @@ HARNESS=""
 RESULTS_DIR=""
 SKIP_E2E="false"
 BUILD_TIMEOUT="900000"
+COMPOSE_TIMEOUT="120000"
+HEALTH_TIMEOUT="120000"
+E2E_FAILED="false"
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -83,6 +88,8 @@ while [[ $# -gt 0 ]]; do
     --results-dir) RESULTS_DIR="$2"; shift 2 ;;
     --skip-e2e) SKIP_E2E="true"; shift ;;
     --build-timeout) BUILD_TIMEOUT="$2"; shift 2 ;;
+    --compose-timeout) COMPOSE_TIMEOUT="$2"; shift 2 ;;
+    --health-timeout) HEALTH_TIMEOUT="$2"; shift 2 ;;
     --help) show_usage; exit 0 ;;
     *) log_error "Unknown option: $1"; show_usage; exit 1 ;;
   esac
@@ -178,14 +185,23 @@ if [[ "$SKIP_E2E" != "true" ]]; then
   E2E_CMD+=(--frontend "$FRONTEND")
   E2E_CMD+=(--results-file "$E2E_RESULTS_FILE")
   E2E_CMD+=(--build-timeout "$BUILD_TIMEOUT")
+  E2E_CMD+=(--compose-timeout "$COMPOSE_TIMEOUT")
+  E2E_CMD+=(--health-timeout "$HEALTH_TIMEOUT")
 
   if "${E2E_CMD[@]}"; then
     log_success "E2E testing completed"
     E2E_STATUS=$(jq -r '.status' "$E2E_RESULTS_FILE")
     log_info "E2E execution status: $E2E_STATUS"
   else
-    log_error "E2E testing failed (will continue with static results only)"
-    E2E_RESULTS_FILE=""
+    log_error "E2E testing failed"
+    if [[ -f "$E2E_RESULTS_FILE" ]]; then
+      E2E_STATUS=$(jq -r '.status' "$E2E_RESULTS_FILE" 2>/dev/null || echo "failed")
+      log_info "E2E execution status: $E2E_STATUS"
+    else
+      log_error "E2E results file was not produced"
+      E2E_RESULTS_FILE=""
+    fi
+    E2E_FAILED="true"
   fi
 else
   log_section "Step 2/3: E2E Testing"
@@ -244,13 +260,27 @@ process.stdout.write(JSON.stringify({
 echo "SUMMARY_JSON: $SUMMARY_JSON"
 
 # Exit with appropriate code
+FINAL_EXIT_CODE=1
 if [[ "$FINAL_SCORE" -ge 75 ]]; then
-  log_success "Project is production-ready"
-  exit 0
+  if [[ "$SKIP_E2E" != "true" && "$E2E_FAILED" == "true" ]]; then
+    log_error "Project reached the production-ready static threshold, but E2E validation failed"
+  else
+    log_success "Project is production-ready"
+    FINAL_EXIT_CODE=0
+  fi
 elif [[ "$FINAL_SCORE" -ge 60 ]]; then
-  log_success "Project is functional (improvements recommended)"
-  exit 0
+  if [[ "$SKIP_E2E" != "true" && "$E2E_FAILED" == "true" ]]; then
+    log_error "Project reached the functional static threshold, but E2E validation failed"
+  else
+    log_success "Project is functional (improvements recommended)"
+    FINAL_EXIT_CODE=0
+  fi
 else
   log_error "Project needs significant improvements"
-  exit 1
 fi
+
+if [[ "$SKIP_E2E" != "true" && "$E2E_FAILED" == "true" ]]; then
+  FINAL_EXIT_CODE=1
+fi
+
+exit "$FINAL_EXIT_CODE"

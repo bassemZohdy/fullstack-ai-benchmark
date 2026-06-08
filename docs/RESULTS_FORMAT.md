@@ -23,14 +23,17 @@ RESULTS/opencode-glm-5.1/spring-boot-angular/overview/evaluation-results.json
     "level": "overview",
     "backend_cartridge": "spring-boot",
     "frontend_cartridge": "angular",
-    "timestamp": "2026-06-07T11:20:18.306Z",
-    "evaluation_version": "4.0",
-    "evaluation_type": "comprehensive"
+    "timestamp": "2026-06-08T11:20:18.306Z",
+    "evaluation_version": "4.1",
+    "evaluation_type": "comprehensive+e2e"
   },
   "quality": {
-    "overall_score": 91,
+    "overall_score": 92,
+    "overall_score_before_e2e": 93,
+    "e2e_impact": -1,
     "tier": "Production-Ready",
-    "pass_rate": 0.9090909090909091,
+    "pass_rate": 0.8840579710144928,
+    "pass_rate_including_e2e": 0.8840579710144928,
     "test_count": 55,
     "passed": 50,
     "failed": 5,
@@ -43,22 +46,22 @@ RESULTS/opencode-glm-5.1/spring-boot-angular/overview/evaluation-results.json
       "e2e_and_other": 100
     }
   },
-  "test_details": {
-    "cartridge_structure": { "passed": 21, "failed": 2, "score": 91, "max": 20, "tests": [] },
-    "code_quality": { "passed": 5, "failed": 0, "score": 100, "max": 15, "tests": [] },
-    "docker_deployment": { "passed": 4, "failed": 0, "score": 100, "max": 20, "tests": [] },
-    "kubernetes_config": { "passed": 14, "failed": 2, "score": 88, "max": 15, "tests": [] },
-    "integration": { "passed": 3, "failed": 1, "score": 75, "max": 20, "tests": [] },
-    "e2e_and_other": { "passed": 3, "failed": 0, "score": 100, "max": 10, "tests": [] }
+  "runtime_validation": {
+    "executed": true,
+    "status": "passed",
+    "e2e_score": 100,
+    "passed": 4,
+    "failed": 0,
+    "total": 4,
+    "tests": [],
+    "phases": {}
   },
-  "strengths": [],
-  "weaknesses": [],
   "status": "COMPLETED"
 }
 ```
 
 ## Notes
 
-- `strengths` and `weaknesses` are derived from individual test outcomes.
-- Token counts, session ids, and cost estimates are stored in `.opencode-session`, not in this file.
-- Comparison summaries should use real benchmark data only. Do not add invented scores.
+- `runtime_validation` is only present when runtime testing runs
+- Token counts, session ids, and cost estimates are stored in `.opencode-session`, not in this file
+- Comparison summaries should use real benchmark data only

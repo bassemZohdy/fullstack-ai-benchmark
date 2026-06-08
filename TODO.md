@@ -8,6 +8,12 @@ Priority guide:
 - `P2` = useful hardening or coverage gap
 - `P3` = longer-term improvement
 
+## Open Work
+
+### P2 Hardening
+
+None at the moment.
+
 ## Completed
 
 - [x] Preserve session resume in `scripts/generate-project.sh`.
@@ -25,3 +31,11 @@ Priority guide:
 - [x] Add a single source of truth for supported models, backends, frontends, and harnesses.
 - [x] Make benchmark output summaries more machine-friendly.
 - [x] Review the static evaluator scoring model for calibration.
+- [x] Add a benchmark cleanup/reset flow for workspaces and results.
+- [x] Validate cleanup behavior before rerunning benchmarks.
+- [x] Increase the benchmark generation timeout for clean reruns.
+- [x] Clean partial outputs after a failed benchmark generation run.
+- [x] Surface E2E failures in the benchmark exit status.
+- [x] Document the reset workflow for benchmark reruns.
+- [x] Investigate the E2E health timeout on a clean rerun.
+- [x] Align the API probe with the generated Spring Boot todo contract.

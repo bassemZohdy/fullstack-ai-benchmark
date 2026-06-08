@@ -1,6 +1,6 @@
 const http = require("http");
 
-function makeRequest(host, port, path, method = "GET", timeout = 5000) {
+function makeRequest(host, port, path, method = "GET", timeout = 5000, body = null) {
   return new Promise((resolve) => {
     const options = {
       host,
@@ -24,6 +24,11 @@ function makeRequest(host, port, path, method = "GET", timeout = 5000) {
       });
     });
 
+    if (body) {
+      req.setHeader("Content-Type", "application/json");
+      req.write(body);
+    }
+
     req.on("error", (err) => {
       resolve({
         statusCode: null,
@@ -45,32 +50,71 @@ function makeRequest(host, port, path, method = "GET", timeout = 5000) {
   });
 }
 
+function parseJsonBody(data) {
+  if (!data) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(data);
+  } catch {
+    return null;
+  }
+}
+
 async function testSpringBoot(backend) {
   const tests = [];
+  const apiPort = Number(process.env.BENCHMARK_API_PORT || 8080);
 
-  // Test basic health check
-  const healthCheck = await makeRequest("localhost", 8080, "/health");
+  // Test the todo API contract exposed by the generated Spring Boot app.
+  const listResponse = await makeRequest("localhost", apiPort, "/api/todos");
   tests.push({
-    name: "Health endpoint responds",
-    status: healthCheck.success ? "passed" : "failed",
-    statusCode: healthCheck.statusCode,
-    error: healthCheck.error
+    name: "GET /api/todos",
+    status: listResponse.success && Array.isArray(parseJsonBody(listResponse.data)) ? "passed" : "failed",
+    statusCode: listResponse.statusCode,
+    error: listResponse.error
   });
 
-  // Try common API endpoints
-  const endpoints = [
-    { path: "/api/todos", method: "GET", name: "GET /api/todos" },
-    { path: "/api/health", method: "GET", name: "GET /api/health" },
-    { path: "/actuator/health", method: "GET", name: "GET /actuator/health" }
-  ];
+  const createResponse = await makeRequest(
+    "localhost",
+    apiPort,
+    "/api/todos",
+    "POST",
+    5000,
+    JSON.stringify({
+      title: "Evaluator smoke todo",
+      description: "Created by the benchmark API probe",
+      completed: false
+    })
+  );
+  tests.push({
+    name: "POST /api/todos",
+    status: createResponse.success ? "passed" : "failed",
+    statusCode: createResponse.statusCode,
+    error: createResponse.error
+  });
 
-  for (const endpoint of endpoints) {
-    const result = await makeRequest("localhost", 8080, endpoint.path, endpoint.method);
+  const createdTodo = parseJsonBody(createResponse.data);
+  if (createdTodo && createdTodo.id != null) {
+    const detailResponse = await makeRequest("localhost", apiPort, `/api/todos/${createdTodo.id}`);
     tests.push({
-      name: endpoint.name,
-      status: result.success ? "passed" : "failed",
-      statusCode: result.statusCode,
-      error: result.error
+      name: `GET /api/todos/${createdTodo.id}`,
+      status: detailResponse.success ? "passed" : "failed",
+      statusCode: detailResponse.statusCode,
+      error: detailResponse.error
+    });
+
+    const deleteResponse = await makeRequest(
+      "localhost",
+      apiPort,
+      `/api/todos/${createdTodo.id}`,
+      "DELETE"
+    );
+    tests.push({
+      name: `DELETE /api/todos/${createdTodo.id}`,
+      status: deleteResponse.success ? "passed" : "failed",
+      statusCode: deleteResponse.statusCode,
+      error: deleteResponse.error
     });
   }
 

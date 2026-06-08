@@ -47,6 +47,7 @@ OPTIONS:
   --results-file <file>     Save results to file (optional)
   --build-timeout <ms>      Build timeout in milliseconds (default: 900000)
   --compose-timeout <ms>    Docker compose timeout (default: 120000)
+  --health-timeout <ms>     Health/readiness timeout (default: 120000)
   --help                    Show this help message
 
 Example:
@@ -63,6 +64,7 @@ FRONTEND="angular"
 RESULTS_FILE=""
 BUILD_TIMEOUT=""
 COMPOSE_TIMEOUT=""
+HEALTH_TIMEOUT=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -72,6 +74,7 @@ while [[ $# -gt 0 ]]; do
     --results-file) RESULTS_FILE="$2"; shift 2 ;;
     --build-timeout) BUILD_TIMEOUT="$2"; shift 2 ;;
     --compose-timeout) COMPOSE_TIMEOUT="$2"; shift 2 ;;
+    --health-timeout) HEALTH_TIMEOUT="$2"; shift 2 ;;
     --help) show_usage; exit 0 ;;
     *) log_error "Unknown option: $1"; show_usage; exit 1 ;;
   esac
@@ -124,6 +127,10 @@ fi
 
 if [[ -n "$COMPOSE_TIMEOUT" ]]; then
   E2E_CMD+=(--compose-timeout "$COMPOSE_TIMEOUT")
+fi
+
+if [[ -n "$HEALTH_TIMEOUT" ]]; then
+  E2E_CMD+=(--health-timeout "$HEALTH_TIMEOUT")
 fi
 
 log_section "Starting E2E Tests"

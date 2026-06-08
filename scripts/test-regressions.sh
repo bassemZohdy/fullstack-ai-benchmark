@@ -3,8 +3,13 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/benchmark-regressions.XXXXXX")"
+API_SERVER_PID=""
 
 cleanup() {
+  if [[ -n "${API_SERVER_PID:-}" ]] && kill -0 "$API_SERVER_PID" 2>/dev/null; then
+    kill "$API_SERVER_PID" 2>/dev/null || true
+    wait "$API_SERVER_PID" 2>/dev/null || true
+  fi
   rm -rf "$TMP_DIR"
 }
 
@@ -73,7 +78,8 @@ EOF
       --frontend "angular" \
       --results-file "$results_file" \
       --build-timeout "12345" \
-      --compose-timeout "67890" >/dev/null
+      --compose-timeout "67890" \
+      --health-timeout "13579" >/dev/null
 
   if ! grep -F -- '--build-timeout 12345' "$capture_file" >/dev/null; then
     fail "run-e2e-tests.sh did not forward --build-timeout"
@@ -83,11 +89,144 @@ EOF
     fail "run-e2e-tests.sh did not forward --compose-timeout"
   fi
 
+  if ! grep -F -- '--health-timeout 13579' "$capture_file" >/dev/null; then
+    fail "run-e2e-tests.sh did not forward --health-timeout"
+  fi
+
   if ! grep -F -- '--results-file' "$capture_file" >/dev/null; then
     fail "run-e2e-tests.sh did not forward --results-file"
   fi
 
   pass "run-e2e-tests.sh forwards timeout flags to e2e-runner.js"
+}
+
+run_benchmark_health_timeout_forwarding_smoke() {
+  local bench_root="$TMP_DIR/benchmark-health-timeout"
+  local script_dir="$bench_root/scripts"
+  local capture_file="$TMP_DIR/benchmark-eval-args.txt"
+  local project_dir="$TMP_DIR/benchmark-project"
+  local results_dir="$TMP_DIR/benchmark-results"
+
+  mkdir -p "$script_dir" "$project_dir" "$results_dir"
+  cp "$ROOT_DIR/scripts/run-benchmark.sh" "$script_dir/run-benchmark.sh"
+  cp "$ROOT_DIR/scripts/benchmark-support.sh" "$script_dir/benchmark-support.sh"
+  cp "$ROOT_DIR/scripts/cleanup-benchmark.sh" "$script_dir/cleanup-benchmark.sh"
+
+  cat > "$script_dir/generate-project.sh" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "\$4"
+exit 0
+EOF
+  chmod +x "$script_dir/generate-project.sh"
+
+  cat > "$script_dir/eval-complete.sh" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "\$*" > "$capture_file"
+exit 0
+EOF
+  chmod +x "$script_dir/eval-complete.sh"
+
+  PATH="$script_dir:$PATH" \
+    "$script_dir/run-benchmark.sh" \
+      --model "GLM-5.1Z.AI" \
+      --level "overview" \
+      --backend "spring-boot" \
+      --frontend "angular" \
+      --provider "z-ai" \
+      --skip-gen \
+      --health-timeout "24680" >/dev/null
+
+  if ! grep -F -- '--health-timeout 24680' "$capture_file" >/dev/null; then
+    fail "run-benchmark.sh did not forward --health-timeout to eval-complete.sh"
+  fi
+
+  pass "run-benchmark.sh forwards --health-timeout to eval-complete.sh"
+}
+
+run_api_todo_contract_smoke() {
+  local server_script="$TMP_DIR/api-server.js"
+  local server_log="$TMP_DIR/api-server.log"
+  local server_port="18999"
+  cat > "$server_script" <<'EOF'
+const http = require("http");
+
+const todos = [];
+let nextId = 1;
+
+const server = http.createServer((req, res) => {
+  const url = new URL(req.url, "http://localhost");
+
+  if (req.method === "GET" && url.pathname === "/api/todos") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(todos));
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/todos") {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk;
+    });
+    req.on("end", () => {
+      const todo = JSON.parse(body || "{}");
+      const created = { ...todo, id: nextId++ };
+      todos.push(created);
+      res.writeHead(201, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(created));
+    });
+    return;
+  }
+
+  const match = url.pathname.match(/^\/api\/todos\/(\d+)$/);
+  if (match && req.method === "GET") {
+    const todo = todos.find((item) => String(item.id) === match[1]);
+    if (!todo) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ message: "Todo not found" }));
+      return;
+    }
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(todo));
+    return;
+  }
+
+  if (match && req.method === "DELETE") {
+    const index = todos.findIndex((item) => String(item.id) === match[1]);
+    if (index === -1) {
+      res.writeHead(404, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ message: "Todo not found" }));
+      return;
+    }
+    todos.splice(index, 1);
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  res.writeHead(404, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ message: "Not found" }));
+});
+
+server.listen(process.env.PORT || 18999, "127.0.0.1");
+EOF
+
+  node "$server_script" > "$server_log" 2>&1 &
+  API_SERVER_PID=$!
+
+  sleep 1
+
+  if ! BENCHMARK_API_PORT="$server_port" node -e "const api=require(process.argv[1]); api.test('.', 'spring-boot').then((r) => { if (r.failed > 0) process.exit(1); }).catch((err) => { console.error(err); process.exit(1); });" "$ROOT_DIR/E2E_TESTS/helpers/api-tester.js"; then
+    fail "api-tester.js did not pass against the todo API contract"
+  fi
+
+  if [[ -n "$API_SERVER_PID" ]] && kill -0 "$API_SERVER_PID" 2>/dev/null; then
+    kill "$API_SERVER_PID" 2>/dev/null || true
+    wait "$API_SERVER_PID" 2>/dev/null || true
+  fi
+  API_SERVER_PID=""
+  pass "api-tester.js matches the generated Spring Boot todo API contract"
 }
 
 run_e2e_build_failure_smoke() {
@@ -234,11 +373,162 @@ EOF
   pass "e2e-runner.js cleans up after health failure"
 }
 
+run_cleanup_reset_smoke() {
+  local cleanup_root="$TMP_DIR/cleanup-smoke"
+  local cleanup_script_dir="$cleanup_root/scripts"
+  local workspace_dir="$cleanup_root/WORKSPACE/opencode-glm-5.1/overview"
+  local results_dir="$cleanup_root/RESULTS/opencode-glm-5.1/spring-boot-angular/overview"
+  local dry_run_output="$TMP_DIR/cleanup-dry-run.txt"
+
+  mkdir -p "$cleanup_script_dir" "$workspace_dir" "$results_dir"
+  cp "$ROOT_DIR/scripts/benchmark-support.sh" "$cleanup_script_dir/benchmark-support.sh"
+  cp "$ROOT_DIR/scripts/cleanup-benchmark.sh" "$cleanup_script_dir/cleanup-benchmark.sh"
+
+  printf '%s\n' 'workspace-marker' > "$workspace_dir/workspace.txt"
+  printf '%s\n' 'results-marker' > "$results_dir/results.txt"
+
+  bash "$cleanup_script_dir/cleanup-benchmark.sh" \
+    --model "GLM-5.1Z.AI" \
+    --level "overview" \
+    --backend "spring-boot" \
+    --frontend "angular" \
+    --harness "opencode" \
+    --scope "all" \
+    --dry-run > "$dry_run_output"
+
+  if [[ ! -f "$workspace_dir/workspace.txt" || ! -f "$results_dir/results.txt" ]]; then
+    fail "cleanup dry-run removed files unexpectedly"
+  fi
+
+  if ! grep -F -- "$workspace_dir" "$dry_run_output" >/dev/null; then
+    fail "cleanup dry-run did not report the workspace path"
+  fi
+
+  if ! grep -F -- "$results_dir" "$dry_run_output" >/dev/null; then
+    fail "cleanup dry-run did not report the results path"
+  fi
+
+  bash "$cleanup_script_dir/cleanup-benchmark.sh" \
+    --model "GLM-5.1Z.AI" \
+    --level "overview" \
+    --backend "spring-boot" \
+    --frontend "angular" \
+    --harness "opencode" \
+    --scope "all" >/dev/null
+
+  if [[ -e "$workspace_dir" || -e "$results_dir" ]]; then
+    fail "cleanup script did not remove the benchmark workspace and results"
+  fi
+
+  pass "cleanup-benchmark.sh safely removes workspace and results paths"
+}
+
+run_eval_complete_e2e_failure_smoke() {
+  local eval_root="$TMP_DIR/eval-complete-fail"
+  local script_dir="$eval_root/scripts"
+  local eval_dir="$eval_root/EVAL"
+  local project_dir="$eval_root/project"
+  local results_dir="$eval_root/results"
+  local final_results="$results_dir/evaluation-results.json"
+  local static_results="$results_dir/static-evaluation.json"
+  local e2e_results="$results_dir/e2e-execution.json"
+
+  mkdir -p "$script_dir" "$eval_dir" "$project_dir" "$results_dir"
+  cp "$ROOT_DIR/scripts/eval-complete.sh" "$script_dir/eval-complete.sh"
+  cp "$ROOT_DIR/scripts/benchmark-support.sh" "$script_dir/benchmark-support.sh"
+  cp "$ROOT_DIR/EVAL/e2e-results-merger.js" "$eval_dir/e2e-results-merger.js"
+
+  cat > "$eval_dir/comprehensive-evaluator.js" <<EOF
+#!/usr/bin/env node
+const fs = require("fs");
+const args = process.argv.slice(2);
+let resultsFile = "";
+for (let i = 0; i < args.length; i += 1) {
+  if (args[i] === "--results-file") {
+    resultsFile = args[i + 1];
+    break;
+  }
+}
+fs.writeFileSync(resultsFile, JSON.stringify({
+  metadata: {
+    evaluation_version: "test",
+    timestamp: new Date().toISOString()
+  },
+  quality: {
+    overall_score: 82,
+    tier: "Deployable",
+    pass_rate: 0.8,
+    test_count: 5,
+    passed: 4,
+    failed: 1,
+    scores: {
+      code_quality: 82
+    }
+  }
+}, null, 2));
+EOF
+  chmod +x "$eval_dir/comprehensive-evaluator.js"
+
+  cat > "$script_dir/run-e2e-tests.sh" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+results_file=""
+while [[ \$# -gt 0 ]]; do
+  case \$1 in
+    --results-file) results_file="\$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+cat > "\$results_file" <<JSON
+{
+  "status": "health_failed",
+  "startedAt": "2026-06-08T00:00:00Z",
+  "finishedAt": "2026-06-08T00:01:00Z",
+  "phases": {
+    "build": {
+      "backend": { "status": "passed" },
+      "frontend": { "status": "passed" }
+    },
+    "docker": { "status": "started" },
+    "health": { "ready": false, "error": "timed out" },
+    "cleanup": { "status": "stopped" }
+  }
+}
+JSON
+exit 1
+EOF
+  chmod +x "$script_dir/run-e2e-tests.sh"
+
+  if "$script_dir/eval-complete.sh" \
+      --project-dir "$project_dir" \
+      --backend "spring-boot" \
+      --frontend "angular" \
+      --model "GLM-5.1Z.AI" \
+      --level "overview" \
+      --results-dir "$results_dir"; then
+    fail "eval-complete.sh unexpectedly succeeded after an E2E failure"
+  fi
+
+  if [[ ! -f "$final_results" || ! -f "$static_results" || ! -f "$e2e_results" ]]; then
+    fail "eval-complete.sh did not write the expected result files"
+  fi
+
+  if ! node -e "const r=require(process.argv[1]); if (r.runtime_validation?.status !== 'health_failed') process.exit(1);" "$final_results"; then
+    fail "eval-complete.sh did not preserve the E2E failure in the merged results"
+  fi
+
+  pass "eval-complete.sh fails the benchmark when E2E health fails"
+}
+
 main() {
   run_generate_resume_smoke
   run_e2e_timeout_forwarding_smoke
+  run_benchmark_health_timeout_forwarding_smoke
+  run_api_todo_contract_smoke
   run_e2e_build_failure_smoke
   run_e2e_cleanup_on_health_failure_smoke
+  run_cleanup_reset_smoke
+  run_eval_complete_e2e_failure_smoke
   pass "All regression smoke checks passed"
 }
 

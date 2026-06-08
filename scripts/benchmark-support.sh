@@ -60,3 +60,33 @@ benchmark_is_runtime_supported() {
 
   [[ "$backend" == "spring-boot" && "$frontend" == "angular" ]]
 }
+
+benchmark_slugify_model() {
+  local harness="$1"
+  local model="$2"
+  local model_slug
+  model_slug="$(echo "$model" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's|^glm-([0-9.]+)z\.ai$|glm-\1|; s|/|-|g; s|[^a-z0-9._-]+|-|g; s|-+|-|g; s|^-||; s|-$||')"
+  echo "${harness}-${model_slug}"
+}
+
+benchmark_workspace_dir() {
+  local harness="$1"
+  local model="$2"
+  local level="$3"
+  local model_slug
+  model_slug="$(benchmark_slugify_model "$harness" "$model")"
+  echo "WORKSPACE/${model_slug}/${level}"
+}
+
+benchmark_results_dir() {
+  local harness="$1"
+  local model="$2"
+  local backend="$3"
+  local frontend="$4"
+  local level="$5"
+  local model_slug
+  model_slug="$(benchmark_slugify_model "$harness" "$model")"
+  echo "RESULTS/${model_slug}/${backend}-${frontend}/${level}"
+}

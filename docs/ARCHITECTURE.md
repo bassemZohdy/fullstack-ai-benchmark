@@ -35,6 +35,7 @@ fullstack-ai-benchmark/
 
 ```text
 run-benchmark.sh
+  -> cleanup-benchmark.sh (when --reset is used)
   -> generate-project.sh
   -> eval-generated-project.sh
   -> run-e2e-tests.sh (optional)
@@ -67,7 +68,9 @@ Contains the runtime validation harness.
 
 - Validates build output first
 - Starts Docker Compose only after a successful build
-- Runs health checks, API tests, and frontend checks
+- Polls common ports for health/readiness
+- Runs the todo API contract checks
+- Verifies frontend availability
 - Always attempts cleanup after Docker startup
 
 ## Supported Runtime Scope
