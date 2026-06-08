@@ -46,6 +46,7 @@ set -e
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+. "$SCRIPT_DIR/benchmark-support.sh"
 
 # Color codes
 RED='\033[0;31m'
@@ -132,9 +133,18 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [ ! -z "$LEVEL_FILTER" ] && [ "$LEVEL_FILTER" != "overview" ] && [ "$LEVEL_FILTER" != "detailed" ]; then
+if ! benchmark_require_value "level" "$LEVEL_FILTER" "${BENCHMARK_LEVELS[@]}"; then
   echo -e "${RED}❌ ERROR: Invalid level: $LEVEL_FILTER${NC}"
-  echo "Valid options: overview, detailed"
+  exit 1
+fi
+
+if ! benchmark_require_value "backend" "$BACKEND_FILTER" "${BENCHMARK_BACKENDS[@]}"; then
+  echo -e "${RED}❌ ERROR: Invalid backend: $BACKEND_FILTER${NC}"
+  exit 1
+fi
+
+if ! benchmark_require_value "frontend" "$FRONTEND_FILTER" "${BENCHMARK_FRONTENDS[@]}"; then
+  echo -e "${RED}❌ ERROR: Invalid frontend: $FRONTEND_FILTER${NC}"
   exit 1
 fi
 
@@ -327,6 +337,21 @@ if [ "$QUIET" != "true" ]; then
 
   echo -e "${MAGENTA}═══════════════════════════════════════════════════════════${NC}"
 fi
+
+SUMMARY_JSON=$(node -e '
+const [model, level, backend, frontend, total, passed, failed] = process.argv.slice(1);
+process.stdout.write(JSON.stringify({
+  model,
+  level,
+  backend,
+  frontend,
+  total_tests: Number(total),
+  passed: Number(passed),
+  failed: Number(failed),
+  status: Number(failed) > 0 ? "failed" : "passed"
+}));
+' "$MODEL_FILTER" "$LEVEL_FILTER" "$BACKEND_FILTER" "$FRONTEND_FILTER" "$TOTAL_TESTS" "$PASSED" "$FAILED")
+echo "SUMMARY_JSON: $SUMMARY_JSON"
 
 # Exit with appropriate code
 if [ $FAILED -gt 0 ]; then

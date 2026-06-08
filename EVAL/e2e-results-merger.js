@@ -155,6 +155,11 @@ function mergeEvaluationResults(staticResults, e2eResults) {
   validateStaticResults(staticResults);
   validateE2EResults(e2eResults);
 
+  const MERGE_WEIGHTS = {
+    static: 0.7,
+    e2e: 0.3
+  };
+
   const e2eTests = convertE2EResultsToEvaluationTests(e2eResults);
   const e2eScore = calculateE2EScore(e2eResults);
 
@@ -178,9 +183,11 @@ function mergeEvaluationResults(staticResults, e2eResults) {
 
   // Update overall score with E2E weighting
   if (e2eResults && e2eResults.status !== "error") {
-    // New weights: E2E results (30%), static analysis (70%)
+    // Keep the merged score calibration explicit and stable.
     const staticOverall = updatedResults.quality.overall_score;
-    const newOverall = Math.round(staticOverall * 0.7 + e2eScore * 0.3);
+    const newOverall = Math.round(
+      staticOverall * MERGE_WEIGHTS.static + e2eScore * MERGE_WEIGHTS.e2e
+    );
     updatedResults.quality.overall_score = newOverall;
     updatedResults.quality.overall_score_before_e2e = staticOverall;
     updatedResults.quality.e2e_impact = newOverall - staticOverall;

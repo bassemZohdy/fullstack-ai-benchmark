@@ -53,6 +53,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+. "$SCRIPT_DIR/benchmark-support.sh"
 
 # Color codes
 RED='\033[0;31m'
@@ -248,9 +249,8 @@ if [ -z "$MODEL" ] || [ -z "$LEVEL" ] || [ -z "$BACKEND" ] || [ -z "$FRONTEND" ]
   exit 1
 fi
 
-if [ "$LEVEL" != "overview" ] && [ "$LEVEL" != "detailed" ]; then
+if ! benchmark_require_value "level" "$LEVEL" "${BENCHMARK_LEVELS[@]}"; then
   echo -e "${RED}❌ ERROR: Invalid level: $LEVEL${NC}"
-  echo "Valid options: overview, detailed"
   exit 1
 fi
 
@@ -299,18 +299,16 @@ FRONTEND_CARTRIDGE="$(cd "$(dirname "$FRONTEND_CARTRIDGE")" && pwd)/$(basename "
 TEMPLATE_FILE="$(cd "$(dirname "$TEMPLATE_FILE")" && pwd)/$(basename "$TEMPLATE_FILE")"
 
 # Validate harness/provider
-if [ "$HARNESS" != "opencode" ] && [ "$HARNESS" != "pi" ]; then
+if ! benchmark_require_value "harness" "$HARNESS" "${BENCHMARK_HARNESSES[@]}"; then
   echo -e "${RED}❌ ERROR: Invalid harness: $HARNESS${NC}"
-  echo "Valid options: opencode, pi"
   exit 1
 fi
 
 # Resolve harness CLI early (needed for all paths)
 HARNESS_CLI="$(resolve_harness_cli "$HARNESS")"
 
-if [ "$PROVIDER" != "z-ai" ] && [ "$PROVIDER" != "zai-coding-plan" ] && [ "$PROVIDER" != "openrouter" ]; then
+if ! benchmark_require_value "provider" "$PROVIDER" "${BENCHMARK_PROVIDERS[@]}"; then
   echo -e "${RED}❌ ERROR: Invalid provider: $PROVIDER${NC}"
-  echo "Valid options: z-ai, zai-coding-plan, openrouter"
   exit 1
 fi
 

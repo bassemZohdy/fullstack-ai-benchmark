@@ -21,6 +21,9 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/benchmark-support.sh"
+
 # Color codes
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -142,7 +145,7 @@ echo ""
 CHECKS_PASSED=0
 CHECKS_TOTAL=0
 
-if [ "$HARNESS" == "opencode" ]; then
+if benchmark_contains "$HARNESS" "${BENCHMARK_HARNESSES[@]}"; then
   if command -v opencode &> /dev/null; then
     check_item "OpenCode CLI installed" "pass"
     CHECKS_PASSED=$((CHECKS_PASSED + 1))
@@ -165,7 +168,7 @@ else
   CHECKS_TOTAL=$((CHECKS_TOTAL + 1))
 fi
 
-if [ "$PROVIDER" == "z-ai" ] || [ "$PROVIDER" == "zai-coding-plan" ]; then
+if benchmark_contains "$PROVIDER" "${BENCHMARK_PROVIDERS[@]}"; then
   check_item "Z.ai coding provider selected" "pass"
   CHECKS_PASSED=$((CHECKS_PASSED + 1))
   CHECKS_TOTAL=$((CHECKS_TOTAL + 1))

@@ -2,6 +2,8 @@
 
 The root project is shell-only. Do not add root Node.js scripts for benchmark orchestration.
 
+The shared supported matrix for levels, backends, frontends, harnesses, and providers lives in [scripts/benchmark-support.sh](../scripts/benchmark-support.sh). The shell scripts source that file for validation so the allowed values stay consistent.
+
 ## run-benchmark.sh
 
 Main orchestrator.

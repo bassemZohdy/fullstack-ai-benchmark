@@ -312,6 +312,15 @@ function evaluateE2EAndOther(projectDir) {
 }
 
 function calculateScores(results) {
+  const SCORE_WEIGHTS = {
+    cartridge: 0.20,
+    codeQuality: 0.15,
+    docker: 0.20,
+    kubernetes: 0.15,
+    integration: 0.20,
+    e2e: 0.10
+  };
+
   const getScore = (result) => {
     const total = result.passed + result.failed;
     return total > 0 ? Math.round((result.passed / total) * 100) : 0;
@@ -325,22 +334,13 @@ function calculateScores(results) {
   const e2eScore = getScore(results.e2e);
 
   // Weighted overall score
-  const weights = {
-    cartridge: 0.20,
-    codeQuality: 0.15,
-    docker: 0.20,
-    kubernetes: 0.15,
-    integration: 0.20,
-    e2e: 0.10
-  };
-
   const overallScore = Math.round(
-    cartridgeScore * weights.cartridge +
-    codeQualityScore * weights.codeQuality +
-    dockerScore * weights.docker +
-    k8sScore * weights.kubernetes +
-    integrationScore * weights.integration +
-    e2eScore * weights.e2e
+    cartridgeScore * SCORE_WEIGHTS.cartridge +
+    codeQualityScore * SCORE_WEIGHTS.codeQuality +
+    dockerScore * SCORE_WEIGHTS.docker +
+    k8sScore * SCORE_WEIGHTS.kubernetes +
+    integrationScore * SCORE_WEIGHTS.integration +
+    e2eScore * SCORE_WEIGHTS.e2e
   );
 
   return {
@@ -355,9 +355,15 @@ function calculateScores(results) {
 }
 
 function getTier(score) {
-  if (score >= 90) return "Production-Ready";
-  if (score >= 75) return "Deployable";
-  if (score >= 60) return "Functional";
+  const TIER_THRESHOLDS = {
+    productionReady: 90,
+    deployable: 75,
+    functional: 60
+  };
+
+  if (score >= TIER_THRESHOLDS.productionReady) return "Production-Ready";
+  if (score >= TIER_THRESHOLDS.deployable) return "Deployable";
+  if (score >= TIER_THRESHOLDS.functional) return "Functional";
   return "Needs Work";
 }
 

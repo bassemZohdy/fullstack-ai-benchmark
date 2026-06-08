@@ -12,6 +12,7 @@ NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+. "$SCRIPT_DIR/benchmark-support.sh"
 
 function log_section() {
   echo "============================================================"
@@ -105,6 +106,16 @@ if [[ -z "$RESULTS_DIR" ]]; then
   exit 1
 fi
 
+if ! benchmark_require_value "backend" "$BACKEND" "${BENCHMARK_BACKENDS[@]}"; then
+  log_error "Invalid backend: $BACKEND"
+  exit 1
+fi
+
+if ! benchmark_require_value "frontend" "$FRONTEND" "${BENCHMARK_FRONTENDS[@]}"; then
+  log_error "Invalid frontend: $FRONTEND"
+  exit 1
+fi
+
 # Create results directory
 mkdir -p "$RESULTS_DIR"
 
@@ -152,6 +163,12 @@ E2E_RESULTS_FILE=""
 E2E_SCORE=0
 
 if [[ "$SKIP_E2E" != "true" ]]; then
+  if ! benchmark_is_runtime_supported "$BACKEND" "$FRONTEND"; then
+    log_error "Unsupported E2E combination: $BACKEND + $FRONTEND"
+    log_info "Runtime E2E is currently implemented only for spring-boot + angular"
+    exit 1
+  fi
+
   log_section "Step 2/3: End-to-End Testing"
   E2E_RESULTS_FILE="$RESULTS_DIR/e2e-execution.json"
 
@@ -201,7 +218,8 @@ PASS_RATE=$(jq -r '.quality.pass_rate_including_e2e // .quality.pass_rate' "$FIN
 
 echo -e "${GREEN}Final Score:${NC} $FINAL_SCORE/100"
 echo -e "${GREEN}Tier:${NC} $FINAL_TIER"
-echo -e "${GREEN}Pass Rate:${NC} $(printf "%.1f" $(echo "$PASS_RATE * 100" | bc))%"
+PASS_RATE_PERCENT=$(node -e 'const rate = Number(process.argv[1] || 0); process.stdout.write((rate * 100).toFixed(1));' "$PASS_RATE")
+echo -e "${GREEN}Pass Rate:${NC} ${PASS_RATE_PERCENT}%"
 echo ""
 echo -e "${GREEN}Results saved to:${NC}"
 echo "  Static Eval: $STATIC_RESULTS_FILE"
@@ -210,6 +228,20 @@ if [[ -n "$E2E_RESULTS_FILE" ]]; then
 fi
 echo "  Final Report: $FINAL_RESULTS_FILE"
 echo ""
+
+SUMMARY_JSON=$(node -e '
+const [resultsDir, staticFile, e2eFile, finalFile, score, tier, passRate] = process.argv.slice(1);
+process.stdout.write(JSON.stringify({
+  results_dir: resultsDir,
+  static_results: staticFile,
+  e2e_results: e2eFile || null,
+  final_results: finalFile,
+  overall_score: Number(score),
+  tier,
+  pass_rate: Number(passRate)
+}));
+' "$RESULTS_DIR" "$STATIC_RESULTS_FILE" "${E2E_RESULTS_FILE:-}" "$FINAL_RESULTS_FILE" "$FINAL_SCORE" "$FINAL_TIER" "$PASS_RATE")
+echo "SUMMARY_JSON: $SUMMARY_JSON"
 
 # Exit with appropriate code
 if [[ "$FINAL_SCORE" -ge 75 ]]; then

@@ -9,23 +9,29 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/benchmark-support.sh"
 
 function log_section() {
-  echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
-  echo -e "${BLUE}$1${NC}"
-  echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
+  echo "============================================================"
+  echo "$1"
+  echo "============================================================"
 }
 
 function log_info() {
-  echo -e "${BLUE}ℹ${NC} $1"
+  echo -e "${BLUE}[INFO]${NC} $1"
 }
 
 function log_success() {
-  echo -e "${GREEN}✅${NC} $1"
+  echo -e "${GREEN}[OK]${NC} $1"
 }
 
 function log_error() {
-  echo -e "${RED}❌${NC} $1"
+  echo -e "${RED}[ERR]${NC} $1"
+}
+
+function log_warning() {
+  echo -e "${YELLOW}[WARN]${NC} $1"
 }
 
 function show_usage() {
@@ -82,12 +88,27 @@ if [[ ! -d "$PROJECT_DIR" ]]; then
   exit 1
 fi
 
+if ! benchmark_require_value "backend" "$BACKEND" "${BENCHMARK_BACKENDS[@]}"; then
+  log_error "Invalid backend: $BACKEND"
+  exit 1
+fi
+
+if ! benchmark_require_value "frontend" "$FRONTEND" "${BENCHMARK_FRONTENDS[@]}"; then
+  log_error "Invalid frontend: $FRONTEND"
+  exit 1
+fi
+
+if ! benchmark_is_runtime_supported "$BACKEND" "$FRONTEND"; then
+  log_error "Unsupported E2E combination: $BACKEND + $FRONTEND"
+  log_warning "Runtime E2E is currently implemented only for spring-boot + angular"
+  exit 1
+fi
+
 log_section "E2E Test Suite"
 log_info "Project:    $(basename "$PROJECT_DIR")"
 log_info "Backend:    $BACKEND"
 log_info "Frontend:   $FRONTEND"
 
-# Build E2E command
 E2E_CMD=(node "E2E_TESTS/e2e-runner.js")
 E2E_CMD+=(--project-dir "$PROJECT_DIR")
 E2E_CMD+=(--backend "$BACKEND")
@@ -105,7 +126,6 @@ if [[ -n "$COMPOSE_TIMEOUT" ]]; then
   E2E_CMD+=(--compose-timeout "$COMPOSE_TIMEOUT")
 fi
 
-# Run E2E tests
 log_section "Starting E2E Tests"
 if "${E2E_CMD[@]}"; then
   log_success "E2E tests passed"
