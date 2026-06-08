@@ -37,6 +37,7 @@
 #     --timeout       Generation timeout (default: 120)
 #     --skip-gen      Skip generation, only evaluate
 #     --skip-eval     Skip evaluation, only generate
+#     --skip-e2e      Skip E2E testing (static analysis only)
 #     --quiet         Suppress detailed output
 ################################################################################
 
@@ -65,6 +66,7 @@ AUTO_APPROVE="true"
 RETRIES="3"
 SKIP_GEN="false"
 SKIP_EVAL="false"
+SKIP_E2E="false"
 TIMEOUT="120"
 QUIET="false"
 
@@ -109,6 +111,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-eval)
       SKIP_EVAL="true"
+      shift
+      ;;
+    --skip-e2e)
+      SKIP_E2E="true"
       shift
       ;;
     --timeout)
@@ -169,6 +175,7 @@ if [ "$QUIET" != "true" ]; then
   echo -e "Retries:        ${YELLOW}${RETRIES}${NC}"
   echo -e "Skip Gen:       ${YELLOW}${SKIP_GEN}${NC}"
   echo -e "Skip Eval:      ${YELLOW}${SKIP_EVAL}${NC}"
+  echo -e "Skip E2E:       ${YELLOW}${SKIP_E2E}${NC}"
   echo ""
 fi
 
@@ -233,28 +240,59 @@ for test_case in "${FILTERED_TESTS[@]}"; do
 
   # Evaluation phase
   if [ "$SKIP_EVAL" != "true" ]; then
-    if [ "$QUIET" != "true" ]; then
-      echo -e "${BLUE}→ Evaluating project...${NC}"
-    fi
+    if [ "$SKIP_E2E" = "true" ]; then
+      # Static analysis only
+      if [ "$QUIET" != "true" ]; then
+        echo -e "${BLUE}→ Evaluating project (static analysis only)...${NC}"
+      fi
 
-    if "$SCRIPT_DIR/eval-generated-project.sh" \
-      --generated-dir "$WORKSPACE_DIR" \
-      --results-dir "$RESULTS_DIR" \
-      --model "$model" \
-      --provider "$PROVIDER" \
-      --harness "$HARNESS" \
-      --level "$level" \
-      --backend "$backend" \
-      --frontend "$frontend"; then
-      if [ "$QUIET" != "true" ]; then
-        echo -e "${GREEN}✅ Evaluation completed${NC}"
+      if "$SCRIPT_DIR/eval-generated-project.sh" \
+        --generated-dir "$WORKSPACE_DIR" \
+        --results-dir "$RESULTS_DIR" \
+        --model "$model" \
+        --provider "$PROVIDER" \
+        --harness "$HARNESS" \
+        --level "$level" \
+        --backend "$backend" \
+        --frontend "$frontend"; then
+        if [ "$QUIET" != "true" ]; then
+          STATIC_SCORE=$(jq -r '.quality.overall_score' "$RESULTS_DIR/evaluation-results.json" 2>/dev/null || echo "N/A")
+          echo -e "${GREEN}✅ Static evaluation completed (Score: ${STATIC_SCORE}/100)${NC}"
+        fi
+        PASSED=$((PASSED + 1))
+      else
+        if [ "$QUIET" != "true" ]; then
+          echo -e "${RED}❌ Evaluation failed${NC}"
+        fi
+        FAILED=$((FAILED + 1))
       fi
-      PASSED=$((PASSED + 1))
     else
+      # Complete evaluation (static + E2E + merge)
       if [ "$QUIET" != "true" ]; then
-        echo -e "${RED}❌ Evaluation failed${NC}"
+        echo -e "${BLUE}→ Evaluating project (static + E2E testing)...${NC}"
       fi
-      FAILED=$((FAILED + 1))
+
+      if "$SCRIPT_DIR/eval-complete.sh" \
+        --project-dir "$WORKSPACE_DIR" \
+        --backend "$backend" \
+        --frontend "$frontend" \
+        --model "$model" \
+        --level "$level" \
+        --provider "$PROVIDER" \
+        --harness "$HARNESS" \
+        --results-dir "$RESULTS_DIR"; then
+        if [ "$QUIET" != "true" ]; then
+          FINAL_SCORE=$(jq -r '.quality.overall_score' "$RESULTS_DIR/evaluation-results.json" 2>/dev/null || echo "N/A")
+          FINAL_TIER=$(jq -r '.quality.tier' "$RESULTS_DIR/evaluation-results.json" 2>/dev/null || echo "N/A")
+          echo -e "${GREEN}✅ Complete evaluation finished (Score: ${FINAL_SCORE}/100 - ${FINAL_TIER})${NC}"
+        fi
+        PASSED=$((PASSED + 1))
+      else
+        if [ "$QUIET" != "true" ]; then
+          echo -e "${RED}❌ Evaluation failed${NC}"
+        fi
+        FAILED=$((FAILED + 1))
+      fi
     fi
   else
     PASSED=$((PASSED + 1))
