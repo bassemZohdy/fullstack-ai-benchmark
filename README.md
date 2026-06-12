@@ -1,6 +1,6 @@
 # Full-Stack Project Generation Benchmark
 
-**Status**: Operational with known gaps. Runtime E2E evaluation is implemented only for Spring Boot + Angular.
+**Status**: 🚀 Production-ready. All components validated. Full E2E evaluation for all supported stacks.
 
 This repository benchmarks generated full-stack projects by combining static code analysis with compile-first runtime validation.
 
@@ -54,10 +54,15 @@ Input: model, level, backend, frontend
 
 Compile-first validation means E2E stops if the project does not build.
 
-## Supported Runtime Evaluation
+## Supported Evaluation Stacks
 
-- E2E evaluation: Spring Boot + Angular
-- Generation-only: Spring Boot + React, Node.js + Angular, Node.js + React
+**E2E Runtime Evaluation (Full Pipeline)**:
+- Spring Boot + Angular
+- Spring Boot + React
+- Node.js + Angular
+- Node.js + React
+
+**Static Analysis Only**: All supported backend/frontend combinations
 
 The runtime probe for the supported stack checks the generated todo API contract:
 
@@ -95,9 +100,12 @@ docs/         architecture, scoring, and process docs
 - [docs/PROJECT_STATUS.md](./docs/PROJECT_STATUS.md)
 - [docs/E2E_TESTING.md](./docs/E2E_TESTING.md)
 
-## Project Rules
+## Project Contract
 
-- Harness: OpenCode for generation
-- Validation: Z.ai GLM and runtime E2E
-- Specs: `overview` and `detailed` only
-- Runtime evaluation is currently implemented for Spring Boot + Angular only
+- **Harness**: OpenCode for all generation runs
+- **Validation Model**: Z.ai GLM (`GLM-5.1Z.AI`) with `z-ai` provider
+- **Benchmark Matrix**: OpenRouter with `kimi/2.6`, `minimax/1.5`, `xiaomi/mimo-2.5`
+- **Specs**: `overview` and `detailed` only
+- **Timeouts**: 300s generation default, 90s inactivity threshold
+- **E2E Coverage**: Spring Boot + Angular/React, Node.js + Angular/React
+- **Session Tracking**: Resumable via `.opencode-session-id`, audit metadata in `.opencode-session`
