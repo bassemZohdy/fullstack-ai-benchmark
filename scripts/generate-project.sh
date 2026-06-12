@@ -508,7 +508,7 @@ build_gen_cmd() {
       GEN_CMD=("$HARNESS_CLI" --provider "$HARNESS_PROVIDER" --model "$HARNESS_MODEL_ID" --no-context-files -p "@$RENDERED_PROMPT")
       ;;
     claude|codex|kilo-code|mimo-code)
-      echo -e "${RED}❌ ERROR: harness '${HARNESS}' is scaffolded and not yet implemented${NC}" >&2
+      echo -e "${RED}❌ ERROR: harness ${HARNESS} is scaffolded and not yet implemented${NC}" >&2
       echo "  See implementation guide: skills/harness-${HARNESS}/SKILL.md" >&2
       exit 1
       ;;
