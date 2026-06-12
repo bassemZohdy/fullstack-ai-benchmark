@@ -1,90 +1,113 @@
 ---
 name: harness-mimo-code
-description: Use mimo-code as the generation harness. Scaffolded — tool identity and CLI interface are unconfirmed. May map to Xiaomi's mimo model via a dedicated CLI or via OpenRouter. Check §8 before using.
+description: Use mimo-code as the generation harness. Binary is `mimo` (npm global package, v0.1.0). Interface mirrors OpenCode — uses --dir, --dangerously-skip-permissions, --file, -m, -s flags. Default model: mimo/mimo-auto.
 ---
 
-# mimo-code Harness — Scaffolded
+# mimo-code Harness
 
 ## Status
 
-**Scaffolded.** `--harness mimo-code` is accepted by validation but `generate-project.sh` exits with:
-```
-❌ ERROR: harness mimo-code is scaffolded and not yet implemented
-  See implementation guide: skills/harness-mimo-code/SKILL.md
-```
-The tool identity and CLI interface are unconfirmed. See §8.
+**Implemented.** `--harness mimo-code` is fully supported in `generate-project.sh`.
+
+Binary: `mimo` (installed at `/c/Users/Bassem/AppData/Roaming/npm/mimo`, v0.1.0)
+No API key required — runs locally.
 
 ## 1. Prerequisites & Install
 
-[TODO: tool identity and distribution method unconfirmed]
+```bash
+npm install -g mimocode   # or whatever the package name is
+mimo --version            # verify: 0.1.0
+```
 
-Candidate interpretations:
-- A dedicated `mimo-code` CLI tool from Xiaomi
-- The Xiaomi mimo model accessed via an existing harness (e.g., `--harness opencode --provider openrouter --model xiaomi/mimo-2.5`)
+No environment variables required for auth. The tool runs with local credentials.
 
 ## 2. Environment Variables
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `BENCHMARK_MIMO_CODE_CLI` | Optional | Path to mimo-code binary if standalone |
-| [TODO] | [TODO] | Auth token or API key required |
+| `BENCHMARK_MIMO_CODE_CLI` | Optional | Override path to `mimo` binary |
 
 ## 3. CLI Invocation Pattern
 
-[TODO: entire invocation pattern unconfirmed]
+```bash
+mimo run \
+  -m <provider/model> \
+  --dir <output-dir> \
+  --file <prompt-file> \
+  --title "<session title>" \
+  --dangerously-skip-permissions \
+  [-s <session-id>] \
+  "<message>"
+```
+
+Key flags:
+- `-m` / `--model` — model in `provider/model` format
+- `--dir` — directory for file creation (benchmark output dir)
+- `--file` — attach file(s) to the message
+- `--dangerously-skip-permissions` — auto-approve all tool use
+- `-s` / `--session` — continue an existing session
+- `--title` — session title (used for identification)
 
 ## 4. Provider & Model Mapping
 
-[TODO: all mappings unconfirmed]
+Provider for mimo-code is passed through unchanged (the model string already encodes provider).
 
-Candidate model mapping (if mimo-code exposes the Xiaomi OpenRouter model):
+| `--model` arg | Resolved `mimo -m` value | Notes |
+|---|---|---|
+| `mimo/mimo-auto` | `mimo/mimo-auto` | Default auto-routing model |
+| `xiaomi/mimo-v2.5` | `xiaomi/mimo-v2.5` | Specific Xiaomi model |
+| `xiaomi/mimo-v2.5-pro` | `xiaomi/mimo-v2.5-pro` | Pro variant |
+| `xiaomi/mimo-v2.5-pro-ultraspeed` | `xiaomi/mimo-v2.5-pro-ultraspeed` | Fastest |
 
-| `--model` | OpenRouter model string |
-|---|---|
-| `xiaomi/mimo-2.5` | `xiaomi/mimo-v2.5-pro` |
+Full model list: `mimo models`
 
 ## 5. Session Management
 
-[TODO: session protocol unconfirmed]
-
-**Planned session files** in the output directory:
+Sessions are tracked the same way as OpenCode.
 
 | File | Content |
 |------|---------|
-| `.mimo-code-session-id` | Resume token if supported |
-| `.mimo-code-session` | JSON audit record |
+| `.mimo-session-id` | Latest session ID (resume token) |
+| `.mimo-session` | JSON audit record |
 
-## 6. generate-project.sh Integration (once implemented)
+Session capture: `mimo session list --format json -n 1`
+Session export: `mimo export <sessionID>`
+
+Session JSON fields: `id`, `sessionID`, or `sessionId` (same probe as OpenCode).
+
+## 6. generate-project.sh Integration
 
 ```bash
 ./scripts/generate-project.sh \
-  --model xiaomi/mimo-2.5 \
+  --model mimo/mimo-auto \
   --level overview \
   --backend spring-boot \
   --frontend angular \
-  --harness mimo-code
-# Expected output: WORKSPACE/mimo-code-xiaomi-mimo-2.5/overview/
+  --harness mimo-code \
+  --provider mimo
+# Output: WORKSPACE/mimo-code-mimo-mimo-auto/overview/
+```
+
+With a specific model:
+```bash
+./scripts/generate-project.sh \
+  --model xiaomi/mimo-v2.5-pro \
+  --level overview \
+  --backend spring-boot --frontend angular \
+  --harness mimo-code --provider mimo
+# Output: WORKSPACE/mimo-code-xiaomi-mimo-v2-5-pro/overview/
 ```
 
 ## 7. Current Behavior
 
-```bash
-./scripts/generate-project.sh \
-  --model xiaomi/mimo-2.5 --level overview \
-  --backend spring-boot --frontend angular \
-  --harness mimo-code
-# ❌ ERROR: harness mimo-code is scaffolded and not yet implemented
-#   See implementation guide: skills/harness-mimo-code/SKILL.md
+```
+Model:        mimo/mimo-auto
+Harness:      mimo-code
+Harness Model: mimo/mimo-auto
+Command:      mimo run -m mimo/mimo-auto --dir <OUTPUT_DIR> --file <PROMPT> \
+                --title "benchmark ..." --dangerously-skip-permissions "<message>"
 ```
 
-## 8. Gaps — Resolve Before Implementing
+## 8. Gaps
 
-| Gap | What to confirm |
-|-----|----------------|
-| Tool identity | Is mimo-code a standalone CLI or the mimo model via another harness? |
-| Distribution | How is it installed? npm, pip, binary download? |
-| Invocation pattern | Full command syntax for non-interactive generation |
-| Provider/model IDs | What provider strings and model IDs does it accept? |
-| Auth requirements | What environment variables or credentials are needed? |
-| Session resume | Supported? If so, how? |
-| `build_gen_cmd` | Fill in `mimo-code)` case in `scripts/generate-project.sh` once confirmed |
+None known. Harness is fully implemented. Flag any issues found during runs.

@@ -5,7 +5,7 @@ BENCHMARK_LEVELS=("overview" "detailed")
 BENCHMARK_BACKENDS=("node-js" "spring-boot" "quarkus")
 BENCHMARK_FRONTENDS=("react" "angular")
 BENCHMARK_HARNESSES=("opencode" "pi" "claude" "codex" "kilo-code" "mimo-code")
-BENCHMARK_PROVIDERS=("z-ai" "zai-coding-plan" "zai-coding-cn" "openrouter")
+BENCHMARK_PROVIDERS=("z-ai" "zai-coding-plan" "zai-coding-cn" "openrouter" "mimo")
 
 benchmark_contains() {
   local needle="$1"

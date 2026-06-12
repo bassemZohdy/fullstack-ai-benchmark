@@ -405,19 +405,19 @@ mkdir -p "$OUTPUT_DIR_PARENT"
 OUTPUT_DIR="$(cd "$OUTPUT_DIR_PARENT" && pwd)/$OUTPUT_DIR_BASENAME"
 
 if [ -z "$SESSION_FILE" ]; then
-  if [ "$HARNESS" == "pi" ]; then
-    SESSION_FILE="$OUTPUT_DIR/.pi-session-id"
-  else
-    SESSION_FILE="$OUTPUT_DIR/.opencode-session-id"
-  fi
+  case "$HARNESS" in
+    pi)          SESSION_FILE="$OUTPUT_DIR/.pi-session-id" ;;
+    mimo-code)   SESSION_FILE="$OUTPUT_DIR/.mimo-session-id" ;;
+    *)           SESSION_FILE="$OUTPUT_DIR/.opencode-session-id" ;;
+  esac
 fi
 
 if [ -z "$SESSION_RECORD_FILE" ]; then
-  if [ "$HARNESS" == "pi" ]; then
-    SESSION_RECORD_FILE="$OUTPUT_DIR/.pi-session"
-  else
-    SESSION_RECORD_FILE="$OUTPUT_DIR/.opencode-session"
-  fi
+  case "$HARNESS" in
+    pi)          SESSION_RECORD_FILE="$OUTPUT_DIR/.pi-session" ;;
+    mimo-code)   SESSION_RECORD_FILE="$OUTPUT_DIR/.mimo-session" ;;
+    *)           SESSION_RECORD_FILE="$OUTPUT_DIR/.opencode-session" ;;
+  esac
 fi
 
 if [ -z "$SESSION_ID" ] && [ -f "$SESSION_FILE" ]; then
@@ -507,7 +507,17 @@ build_gen_cmd() {
     pi)
       GEN_CMD=("$HARNESS_CLI" --provider "$HARNESS_PROVIDER" --model "$HARNESS_MODEL_ID" --no-context-files -p "@$RENDERED_PROMPT")
       ;;
-    claude|codex|kilo-code|mimo-code)
+    mimo-code)
+      GEN_CMD=("$HARNESS_CLI" run -m "$HARNESS_MODEL" --dir "$OUTPUT_DIR" --file "$RENDERED_PROMPT" --title "benchmark ${MODEL} ${BACKEND}-${FRONTEND} ${LEVEL}")
+      if [ "$AUTO_APPROVE" == "true" ]; then
+        GEN_CMD+=(--dangerously-skip-permissions)
+      fi
+      if [ ! -z "$SESSION_ID" ]; then
+        GEN_CMD+=(-s "$SESSION_ID")
+      fi
+      GEN_CMD+=("$GEN_PROMPT")
+      ;;
+    claude|codex|kilo-code)
       echo -e "${RED}❌ ERROR: harness ${HARNESS} is scaffolded and not yet implemented${NC}" >&2
       echo "  See implementation guide: skills/harness-${HARNESS}/SKILL.md" >&2
       exit 1
@@ -543,7 +553,21 @@ process.stdin.on("end", () => {
       # For now, sessions are tracked internally by PI
       return 0
       ;;
-    claude|codex|kilo-code|mimo-code)
+    mimo-code)
+      latest_session="$(mimo session list --format json -n 1 2>/dev/null | node -e '
+let input = "";
+process.stdin.on("data", chunk => input += chunk);
+process.stdin.on("end", () => {
+  try {
+    const data = JSON.parse(input || "[]");
+    const first = Array.isArray(data) ? data[0] : data;
+    const id = first && (first.id || first.sessionID || first.sessionId);
+    if (id) process.stdout.write(String(id));
+  } catch {}
+});
+' 2>/dev/null || true)"
+      ;;
+    claude|codex|kilo-code)
       return 0
       ;;
     *)
@@ -576,7 +600,12 @@ capture_latest_session_export() {
       : > "$SESSION_EXPORT_FILE"
       return 0
       ;;
-    claude|codex|kilo-code|mimo-code)
+    mimo-code)
+      if "$HARNESS_CLI" export "$SESSION_ID" > "$SESSION_EXPORT_FILE" 2>/dev/null; then
+        return 0
+      fi
+      ;;
+    claude|codex|kilo-code)
       : > "$SESSION_EXPORT_FILE"
       return 0
       ;;
