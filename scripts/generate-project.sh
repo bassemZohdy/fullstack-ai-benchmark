@@ -83,6 +83,42 @@ resolve_harness_cli() {
         fi
       done
       ;;
+    claude)
+      for candidate in "$BENCHMARK_CLAUDE_CLI" "claude"; do
+        [ -z "$candidate" ] && continue
+        if command -v "$candidate" &>/dev/null 2>&1 || [ -x "$candidate" ] 2>/dev/null; then
+          echo "$candidate"
+          return 0
+        fi
+      done
+      ;;
+    codex)
+      for candidate in "$BENCHMARK_CODEX_CLI" "codex"; do
+        [ -z "$candidate" ] && continue
+        if command -v "$candidate" &>/dev/null 2>&1 || [ -x "$candidate" ] 2>/dev/null; then
+          echo "$candidate"
+          return 0
+        fi
+      done
+      ;;
+    kilo-code)
+      for candidate in "$BENCHMARK_KILO_CODE_CLI" "kilo-code" "kilo"; do
+        [ -z "$candidate" ] && continue
+        if command -v "$candidate" &>/dev/null 2>&1 || [ -x "$candidate" ] 2>/dev/null; then
+          echo "$candidate"
+          return 0
+        fi
+      done
+      ;;
+    mimo-code)
+      for candidate in "$BENCHMARK_MIMO_CODE_CLI" "mimo-code" "mimo"; do
+        [ -z "$candidate" ] && continue
+        if command -v "$candidate" &>/dev/null 2>&1 || [ -x "$candidate" ] 2>/dev/null; then
+          echo "$candidate"
+          return 0
+        fi
+      done
+      ;;
   esac
   return 1
 }
@@ -471,6 +507,11 @@ build_gen_cmd() {
     pi)
       GEN_CMD=("$HARNESS_CLI" --provider "$HARNESS_PROVIDER" --model "$HARNESS_MODEL_ID" --no-context-files -p "@$RENDERED_PROMPT")
       ;;
+    claude|codex|kilo-code|mimo-code)
+      echo -e "${RED}❌ ERROR: harness '${HARNESS}' is scaffolded and not yet implemented${NC}" >&2
+      echo "  See implementation guide: skills/harness-${HARNESS}/SKILL.md" >&2
+      exit 1
+      ;;
     *)
       echo -e "${RED}❌ ERROR: Unknown harness: $HARNESS${NC}"
       exit 1
@@ -502,6 +543,9 @@ process.stdin.on("end", () => {
       # For now, sessions are tracked internally by PI
       return 0
       ;;
+    claude|codex|kilo-code|mimo-code)
+      return 0
+      ;;
     *)
       return 0
       ;;
@@ -529,6 +573,10 @@ capture_latest_session_export() {
       ;;
     pi)
       # PI exports might work differently; implement as needed
+      : > "$SESSION_EXPORT_FILE"
+      return 0
+      ;;
+    claude|codex|kilo-code|mimo-code)
       : > "$SESSION_EXPORT_FILE"
       return 0
       ;;
