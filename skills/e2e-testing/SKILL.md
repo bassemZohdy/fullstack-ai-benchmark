@@ -17,13 +17,19 @@ Use this skill when the task is to verify that a generated project builds and ru
 4. Review the helper outputs in `E2E_TESTS/helpers/` before changing the runner.
 5. If cleanup or timeout behavior looks wrong, inspect the runner and the docker helper together.
 
-## Current Coverage
+## Supported Stack Coverage
 
-- Supported runtime evaluation: Spring Boot + Angular
-- Build helper: `E2E_TESTS/helpers/build-validator.js`
-- API helper: `E2E_TESTS/helpers/api-tester.js`
-- Frontend helper: `E2E_TESTS/helpers/frontend-tester.js`
-- Docker helper: `E2E_TESTS/helpers/docker-runner.js`
+**Full E2E Runtime Validation** (all phases: build → docker → api → frontend):
+- Spring Boot + Angular ✅
+- Spring Boot + React ✅
+- Node.js + Angular ✅
+- Node.js + React ✅
+
+**Component Helpers**:
+- Build validation: `E2E_TESTS/helpers/build-validator.js` (compiles backend, bundles frontend)
+- Docker orchestration: `E2E_TESTS/helpers/docker-runner.js` (starts services via docker-compose)
+- API validation: `E2E_TESTS/helpers/api-tester.js` (probes todo API: GET, POST, DELETE /api/todos)
+- Frontend validation: `E2E_TESTS/helpers/frontend-tester.js` (checks bundle and routes)
 
 ## Common Failures
 
