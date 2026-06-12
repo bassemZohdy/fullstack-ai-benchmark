@@ -4,7 +4,7 @@
 BENCHMARK_LEVELS=("overview" "detailed")
 BENCHMARK_BACKENDS=("node-js" "spring-boot" "quarkus")
 BENCHMARK_FRONTENDS=("react" "angular")
-BENCHMARK_HARNESSES=("opencode" "pi")
+BENCHMARK_HARNESSES=("opencode" "pi" "claude" "codex" "kilo-code" "mimo-code")
 BENCHMARK_PROVIDERS=("z-ai" "zai-coding-plan" "zai-coding-cn" "openrouter")
 
 benchmark_contains() {
@@ -59,7 +59,7 @@ benchmark_is_runtime_supported() {
   local backend="$1"
   local frontend="$2"
 
-  [[ "$backend" == "spring-boot" && "$frontend" == "angular" ]]
+  [[ ("$backend" == "spring-boot" || "$backend" == "node-js") && ("$frontend" == "angular" || "$frontend" == "react") ]]
 }
 
 benchmark_slugify_model() {
