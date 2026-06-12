@@ -1,141 +1,21 @@
 # Project Generation - Extended Documentation
 
-**This document supplements `SKILL.md` with detailed implementation details.**
+**This document supplements `SKILL.md` with session protocol, timeout, and retry details.**
+
+> Harness-specific details (CLI invocation, provider/model mapping, session capture) have moved
+> to the per-harness skills. See `skills/harness-opencode/SKILL.md`, `skills/harness-pi/SKILL.md`,
+> and the other `skills/harness-*/SKILL.md` files.
 
 ## Table of Contents
-1. Harness Abstraction
-2. Session Management Protocol
-3. Timeout & Activity Monitoring
-4. Retry Logic
-5. Model & Provider Mapping
-6. Session Record Schema
-7. Complete Working Examples
+1. Session Management Protocol
+2. Timeout & Activity Monitoring
+3. Retry Logic
+4. Complete Working Examples
+5. Troubleshooting Guide
 
 ---
 
-## 1. Harness Abstraction
-
-The `generate-project.sh` script supports multiple generation harnesses with provider-specific model routing.
-
-### Supported Harnesses
-
-| Harness | Provider(s) | CLI Location | Use Case |
-|---------|-------------|--------------|----------|
-| opencode | z-ai, openrouter | `opencode` (pip install) | Default, comprehensive |
-| pi | z-ai, openrouter | `$BENCHMARK_PI_CLI` or system PATH | Fast iteration |
-
-### Harness Resolution
-
-The script resolves the harness CLI in this order:
-1. Check `$BENCHMARK_PI_CLI` environment variable
-2. Check `~/.AppData/Local/pi-node/current/pi.cmd` (Windows)
-3. Check `~/.AppData/Local/pi-node/current/pi` (Windows)
-4. Check system PATH for `pi` command
-
-**Example**: If you have PI installed locally, set:
-```bash
-export BENCHMARK_PI_CLI="/path/to/pi/cli"
-./scripts/generate-project.sh --harness pi --model GLM-5.1Z.AI --level overview ...
-```
-
-### Provider-to-Harness Mapping
-
-Providers must be mapped to harness-specific formats:
-
-**Z.ai Provider**:
-- Requested: `--provider z-ai`
-- OpenCode format: `zai-coding-plan`
-- PI format: `zai-coding-cn`
-
-**OpenRouter Provider**:
-- Requested: `--provider openrouter`
-- OpenCode format: `openrouter`
-- PI format: `openrouter`
-
-**Mapping logic** (in `map_harness_provider`):
-```bash
-if [ "$PROVIDER" == "z-ai" ]; then
-  # OpenCode uses zai-coding-plan, PI uses zai-coding-cn
-  case "$HARNESS" in
-    opencode) echo "zai-coding-plan" ;;
-    pi) echo "zai-coding-cn" ;;
-  esac
-else
-  echo "$PROVIDER"  # Pass through for openrouter
-fi
-```
-
----
-
-## 2. Model & Provider Mapping
-
-Models must be normalized to harness-specific formats.
-
-### Supported Models
-
-| Model ID | Z.ai Format | OpenRouter Format | Notes |
-|----------|------------|-------------------|-------|
-| `GLM-5.1Z.AI` | `glm-5.1` | `GLM-5.1Z.AI` | Validation model |
-| `glm-5.1z.ai` | `glm-5.1` | N/A | Case-insensitive variant |
-| `kimi/2.6` | N/A | `moonshotai/kimi-k2.6` | OpenRouter only |
-| `minimax/1.5` | N/A | `minimax/minimax-m3` | OpenRouter only |
-| `xiaomi/mimo-2.5` | N/A | `xiaomi/mimo-v2.5-pro` | OpenRouter only |
-
-### Model Mapping Logic (in `map_harness_model`)
-
-```bash
-map_harness_model() {
-  local harness="$1"
-  local provider="$2"
-  local model="$3"
-
-  case "$model" in
-    GLM-5.1Z.AI|glm-5.1z.ai|glm-5.1)
-      # For z.ai providers, normalize to glm-5.1
-      if [ "$provider" == "zai-coding-plan" ] || [ "$provider" == "zai-coding-cn" ]; then
-        echo "glm-5.1"
-      else
-        echo "$model"
-      fi
-      ;;
-    kimi/2.6)
-      # For OpenRouter, use full model ID
-      if [ "$provider" == "openrouter" ]; then
-        echo "moonshotai/kimi-k2.6"
-      else
-        echo "$model"
-      fi
-      ;;
-    # ... similar for other models
-  esac
-}
-```
-
-### Usage in Command Building
-
-The script constructs harness commands as:
-```bash
-# OpenCode with z.ai
-opencode run \
-  --model zai-coding-plan/glm-5.1 \
-  --file <prompt> \
-  --dir <output> \
-  <prompt-message>
-
-# PI with z.ai
-pi --provider zai-coding-cn --model glm-5.1 --no-context-files -p "@<prompt>"
-
-# OpenCode with OpenRouter
-opencode run \
-  --model openrouter/moonshotai/kimi-k2.6 \
-  --file <prompt> \
-  --dir <output> \
-  <prompt-message>
-```
-
----
-
-## 3. Session Management Protocol
+## 1. Session Management Protocol
 
 Sessions allow resuming interrupted generation attempts without regenerating from scratch.
 
@@ -250,7 +130,7 @@ opencode export "$SESSION_ID" > .opencode-session
 
 ---
 
-## 4. Timeout & Activity Monitoring
+## 2. Timeout & Activity Monitoring
 
 The script monitors generation progress using **activity-based detection** rather than simple wall-clock timing.
 
@@ -330,7 +210,7 @@ The script monitors generation progress using **activity-based detection** rathe
 
 ---
 
-## 5. Retry Logic
+## 3. Retry Logic
 
 The script automatically retries failed generations up to `--retries` times (default: 3).
 
@@ -390,7 +270,7 @@ Each attempt is recorded in `.opencode-session`:
 
 ---
 
-## 6. Complete Working Examples
+## 4. Complete Working Examples
 
 ### Example 1: Simple Generation with Z.ai
 
@@ -500,7 +380,7 @@ cat WORKSPACE/opencode-glm-5.1/overview/.opencode-session-id
 
 ---
 
-## 7. Troubleshooting Guide
+## 5. Troubleshooting Guide
 
 ### Issue: "CLI not found for harness"
 
@@ -573,6 +453,6 @@ export OPENROUTER_API_KEY="your_api_key"
 
 - Main script: `scripts/generate-project.sh`
 - Support library: `scripts/benchmark-support.sh`
-- Harness abstraction functions: `resolve_harness_cli()`, `map_harness_provider()`, `map_harness_model()`
+- Harness abstraction functions: see `skills/harness-opencode/SKILL.md` and `skills/harness-pi/SKILL.md`
 - Session management: `capture_latest_session_id()`, `capture_latest_session_export()`
 - Monitoring: `monitor_process_with_activity()` (line 703)
