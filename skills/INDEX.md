@@ -16,11 +16,25 @@ Project-specific skills for the full-stack AI benchmark project. Each skill docu
 | `e2e-testing` | Validate builds, Docker, API, and frontend | `run-e2e-tests.sh` |
 | `docs-maintenance` | Keep documentation aligned with script behavior | README.md, docs/ |
 
+## Harness Skills
+
+Use these skills when selecting or configuring a generation harness. Start with `harness-base` to pick the right tool, then switch to the per-harness skill for invocation details.
+
+| Skill | Harness | `--harness` value | Status |
+|-------|---------|------------------|--------|
+| `harness-base` | All | — | Orientation & routing |
+| `harness-opencode` | OpenCode | `opencode` | Ready |
+| `harness-pi` | PI | `pi` | Ready |
+| `harness-claude` | Claude Code CLI | `claude` | Scaffolded |
+| `harness-codex` | OpenAI Codex CLI | `codex` | Scaffolded |
+| `harness-kilo-code` | Kilo Code | `kilo-code` | Scaffolded |
+| `harness-mimo-code` | mimo-code | `mimo-code` | Scaffolded |
+
 ## Supplementary Documentation
 
 | Document | Purpose |
 |----------|---------|
-| `project-generation/EXTENDED.md` | Detailed implementation of harness abstraction, session management, timeouts, retries |
+| `project-generation/EXTENDED.md` | Session protocol, timeout monitoring, retry logic, session record schema |
 
 ## Suggested Routing
 
@@ -52,6 +66,7 @@ Project-specific skills for the full-stack AI benchmark project. Each skill docu
 | `test-setup.sh` | `environment-setup` | - |
 | `render-prompt.sh` | `prompt-rendering` | - |
 | `generate-project.sh` | `project-generation` | `EXTENDED.md` |
+| `generate-project.sh` (harness selection) | `harness-base` → `harness-<name>` | - |
 | `cleanup-benchmark.sh` | `cleanup-benchmark` | - |
 | `eval-generated-project.sh` | `evaluation-workflow` | - |
 | `eval-complete.sh` | `eval-complete-pipeline` | - |
@@ -60,20 +75,20 @@ Project-specific skills for the full-stack AI benchmark project. Each skill docu
 
 ## Key Features Documented
 
-### Harness Abstraction
-- **Skill**: `project-generation` (EXTENDED.md section 1)
-- **Coverage**: CLI resolution, provider mapping, model normalization
+### Harness Selection
+- **Skill**: `harness-base` → per-harness skill (`harness-opencode`, `harness-pi`, etc.)
+- **Coverage**: CLI resolution, provider mapping, model normalization, session capture
 
 ### Session Management
-- **Skill**: `project-generation` (EXTENDED.md section 2)
+- **Skill**: `project-generation` (EXTENDED.md section 1)
 - **Coverage**: Resume protocol, session files, session export
 
 ### Timeout & Activity Monitoring
-- **Skill**: `project-generation` (EXTENDED.md section 4)
+- **Skill**: `project-generation` (EXTENDED.md section 2)
 - **Coverage**: Activity-based detection, hard limits, inactivity thresholds
 
 ### Retry Logic
-- **Skill**: `project-generation` (EXTENDED.md section 5)
+- **Skill**: `project-generation` (EXTENDED.md section 3)
 - **Coverage**: Automatic retries, session resumption, attempt tracking
 
 ### Complete Evaluation Pipeline
@@ -97,7 +112,7 @@ environment-setup → repo-orientation → project-generation → eval-complete-
 
 **Example 2: Debugging generation timeout**
 ```
-project-generation (EXTENDED.md section 4)
+project-generation (EXTENDED.md section 2)
 ```
 
 **Example 3: E2E test failure investigation**
@@ -112,7 +127,7 @@ cleanup-benchmark → project-generation
 
 **Example 5: Multi-harness comparison**
 ```
-project-generation → eval-complete-pipeline (run twice: once per harness)
+harness-base → project-generation → eval-complete-pipeline (run twice: once per harness)
 ```
 
 ## Quality Standards
@@ -128,24 +143,16 @@ Each skill includes:
 - ✅ Performance expectations
 - ✅ Links to related skills
 
-## Critical Updates (2026-06-12)
+## Skill Currency
 
-**Fixed**:
-- `e2e-testing`: Updated supported stacks (was "Spring Boot + Angular only", now correctly lists all 4)
+All skills are verified against the actual script implementations. Key invariants:
 
-**Created**:
-- `cleanup-benchmark`: New skill for `cleanup-benchmark.sh`
-- `eval-complete-pipeline`: New skill for `eval-complete.sh`
-- `environment-setup`: New skill for `test-setup.sh`
-- `project-generation/EXTENDED.md`: Detailed documentation for harness abstraction, session management, timeouts
-
-**Enhanced**:
-- `project-generation`: EXTENDED.md provides comprehensive implementation details
-- `evaluation-workflow`: Aligned with new eval-complete-pipeline skill
+- `benchmark-support.sh` is the single source of truth for valid levels, backends, frontends, harnesses, and providers
+- `quarkus` is a valid backend for generation and static evaluation but not for E2E — always pair it with `--skip-e2e`
+- E2E timeout params (`--build-timeout`, `--compose-timeout`, `--health-timeout`) are forwarded from `eval-complete.sh` through to `run-e2e-tests.sh`
+- Workspace and results paths use the `{harness}-{model-slug}` prefix derived by `benchmark_slugify_model` in `benchmark-support.sh`
 
 ## Related Documentation
 
-- **SKILLS_AUDIT.md**: Detailed audit of skill coverage and gaps (for maintainers)
-- **MEMORY.md**: Project memory including architecture decisions and performance baselines
 - **README.md**: User-facing project overview
 - **docs/**: Architecture, evaluation system, E2E testing details
