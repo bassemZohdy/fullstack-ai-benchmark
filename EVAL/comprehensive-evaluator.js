@@ -168,7 +168,7 @@ function evaluateDockerDeployment(projectDir) {
     stdio: "pipe"
   });
 
-  const buildOk = buildResult.status === 0 || buildResult.status === 1;
+  const buildOk = buildResult.status === 0;
   tests.push({
     name: "Docker images buildable",
     status: buildOk ? "passed" : "failed",
@@ -277,16 +277,8 @@ function evaluateE2EAndOther(projectDir) {
     };
   }
 
-  const hasBackendTests = safeRecursiveRead(backendDir).some(f =>
-    /Test\.java$/.test(normalizePath(f))
-  );
-  tests.push({
-    name: "Backend unit tests exist",
-    status: hasBackendTests ? "passed" : "failed",
-    details: hasBackendTests ? "" : "No test files found"
-  });
-
-  // Check for test files in frontend
+  // Check for test files in frontend (backend unit tests are already checked in
+  // cartridge_structure via spring-boot.js — do not duplicate here)
   const hasFrontendTests = safeRecursiveRead(frontendDir).some(f =>
     /\.spec\.ts$/.test(normalizePath(f))
   );
@@ -447,42 +439,42 @@ async function main() {
         passed: results.cartridge.passed,
         failed: results.cartridge.failed,
         score: scores.cartridge,
-        max: 20,
+        weight_pct: 20,
         tests: results.cartridge.tests
       },
       code_quality: {
         passed: results.codeQuality.passed,
         failed: results.codeQuality.failed,
         score: scores.codeQuality,
-        max: 15,
+        weight_pct: 15,
         tests: results.codeQuality.tests
       },
       docker_deployment: {
         passed: results.docker.passed,
         failed: results.docker.failed,
         score: scores.docker,
-        max: 20,
+        weight_pct: 20,
         tests: results.docker.tests
       },
       kubernetes_config: {
         passed: results.kubernetes.passed,
         failed: results.kubernetes.failed,
         score: scores.kubernetes,
-        max: 15,
+        weight_pct: 15,
         tests: results.kubernetes.tests
       },
       integration: {
         passed: results.integration.passed,
         failed: results.integration.failed,
         score: scores.integration,
-        max: 20,
+        weight_pct: 20,
         tests: results.integration.tests
       },
       e2e_and_other: {
         passed: results.e2e.passed,
         failed: results.e2e.failed,
         score: scores.e2e,
-        max: 10,
+        weight_pct: 10,
         tests: results.e2e.tests
       }
     },

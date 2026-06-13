@@ -105,7 +105,7 @@ function calculateE2EScore(e2eResults) {
   let score = 0;
   let maxScore = 0;
 
-  // Build success: 25 points
+  // Build success: 25 points. Partial credit (12) when only one side passes.
   if (phases.build) {
     maxScore += 25;
     const backendOk =
@@ -115,6 +115,7 @@ function calculateE2EScore(e2eResults) {
       phases.build.frontend?.status === "passed" ||
       phases.build.frontend?.status === "skipped";
     if (backendOk && frontendOk) score += 25;
+    else if (backendOk || frontendOk) score += 12;
   }
 
   // Docker startup: 20 points
@@ -138,17 +139,22 @@ function calculateE2EScore(e2eResults) {
     }
   }
 
-  // Frontend accessibility: 15 points
+  // Frontend accessibility: 15 points (binary — accessible on any port = full credit).
+  // Port probing tests multiple ports (React, Angular, Nginx, etc.) for diagnostics,
+  // but a project is not penalised for not running on irrelevant ports.
   if (phases.frontend) {
     maxScore += 15;
-    if (phases.frontend.accessible) {
-      const passRate =
-        phases.frontend.passed / Math.max(phases.frontend.total, 1);
-      score += Math.round(15 * passRate);
-    }
+    if (phases.frontend.accessible) score += 15;
   }
 
   return maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
+}
+
+function getTier(score) {
+  if (score >= 90) return "Production-Ready";
+  if (score >= 75) return "Deployable";
+  if (score >= 60) return "Functional";
+  return "Needs Work";
 }
 
 function mergeEvaluationResults(staticResults, e2eResults) {
@@ -189,6 +195,7 @@ function mergeEvaluationResults(staticResults, e2eResults) {
       staticOverall * MERGE_WEIGHTS.static + e2eScore * MERGE_WEIGHTS.e2e
     );
     updatedResults.quality.overall_score = newOverall;
+    updatedResults.quality.tier = getTier(newOverall);
     updatedResults.quality.overall_score_before_e2e = staticOverall;
     updatedResults.quality.e2e_impact = newOverall - staticOverall;
   }
