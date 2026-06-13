@@ -103,7 +103,7 @@ fi
 
 if ! benchmark_is_runtime_supported "$BACKEND" "$FRONTEND"; then
   log_error "Unsupported E2E combination: $BACKEND + $FRONTEND"
-  log_warning "Runtime E2E is currently implemented only for spring-boot + angular"
+  log_warning "Supported combinations: spring-boot or node-js with angular or react"
   exit 1
 fi
 

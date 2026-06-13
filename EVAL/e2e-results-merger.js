@@ -166,26 +166,41 @@ function mergeEvaluationResults(staticResults, e2eResults) {
     e2e: 0.3
   };
 
+  // Update overall scores to include E2E results
+  const updatedResults = JSON.parse(JSON.stringify(staticResults));
+  const staticTestCount = updatedResults.quality.test_count;
+  const staticPassed = updatedResults.quality.passed;
+  const staticFailed = updatedResults.quality.failed;
+  const staticPassRate = updatedResults.quality.pass_rate;
+
+  // Store original static scores
+  updatedResults.quality.static_scores = updatedResults.quality.scores;
+  updatedResults.quality.static_test_count = staticTestCount;
+  updatedResults.quality.static_passed = staticPassed;
+  updatedResults.quality.static_failed = staticFailed;
+  updatedResults.quality.static_pass_rate = staticPassRate;
+
+  if (!e2eResults) {
+    updatedResults.metadata.evaluation_version = "4.1";
+    updatedResults.metadata.evaluation_type = "comprehensive";
+    updatedResults.metadata.e2e_enabled = false;
+    return updatedResults;
+  }
+
   const e2eTests = convertE2EResultsToEvaluationTests(e2eResults);
   const e2eScore = calculateE2EScore(e2eResults);
 
   // Create runtime_validation section with E2E results
   const runtimeValidation = {
-    executed: !!e2eResults,
-    status: e2eResults?.status || "not_executed",
+    executed: true,
+    status: e2eResults.status || "not_executed",
     e2e_score: e2eScore,
     passed: e2eTests.filter((t) => t.status === "passed").length,
     failed: e2eTests.filter((t) => t.status === "failed").length,
     total: e2eTests.length,
     tests: e2eTests,
-    phases: e2eResults?.phases || {}
+    phases: e2eResults.phases || {}
   };
-
-  // Update overall scores to include E2E results
-  const updatedResults = JSON.parse(JSON.stringify(staticResults));
-
-  // Store original static scores
-  updatedResults.quality.static_scores = updatedResults.quality.scores;
 
   // Update overall score with E2E weighting
   if (e2eResults && e2eResults.status !== "error") {
@@ -203,20 +218,21 @@ function mergeEvaluationResults(staticResults, e2eResults) {
   // Add runtime validation section
   updatedResults.runtime_validation = runtimeValidation;
 
-  // Update test count
-  updatedResults.quality.total_tests_including_e2e =
-    updatedResults.quality.test_count + runtimeValidation.total;
-  updatedResults.quality.total_passed_including_e2e =
-    updatedResults.quality.passed + runtimeValidation.passed;
-  updatedResults.quality.total_failed_including_e2e =
-    updatedResults.quality.failed + runtimeValidation.failed;
+  // Update merged counts and pass rate.
+  const mergedTestCount = staticTestCount + runtimeValidation.total;
+  const mergedPassed = staticPassed + runtimeValidation.passed;
+  const mergedFailed = staticFailed + runtimeValidation.failed;
 
-  // Calculate new pass rate
-  const totalTests = updatedResults.quality.total_tests_including_e2e;
-  updatedResults.quality.pass_rate_including_e2e =
-    totalTests > 0
-      ? updatedResults.quality.total_passed_including_e2e / totalTests
-      : 0;
+  updatedResults.quality.test_count = mergedTestCount;
+  updatedResults.quality.passed = mergedPassed;
+  updatedResults.quality.failed = mergedFailed;
+  updatedResults.quality.pass_rate =
+    mergedTestCount > 0 ? mergedPassed / mergedTestCount : 0;
+
+  updatedResults.quality.total_tests_including_e2e = mergedTestCount;
+  updatedResults.quality.total_passed_including_e2e = mergedPassed;
+  updatedResults.quality.total_failed_including_e2e = mergedFailed;
+  updatedResults.quality.pass_rate_including_e2e = updatedResults.quality.pass_rate;
 
   // Update metadata
   updatedResults.metadata.evaluation_version = "4.1";

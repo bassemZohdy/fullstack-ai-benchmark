@@ -106,6 +106,6 @@ docs/         architecture, scoring, and process docs
 - **Validation Model**: Z.ai GLM (`GLM-5.1Z.AI`) with `z-ai` provider
 - **Benchmark Matrix**: OpenRouter with `kimi/2.6`, `minimax/1.5`, `xiaomi/mimo-2.5`
 - **Specs**: `overview` and `detailed` only
-- **Timeouts**: 300s generation default, 90s inactivity threshold
+- **Timeouts**: 600s generation default, 90s inactivity threshold
 - **E2E Coverage**: Spring Boot + Angular/React, Node.js + Angular/React
 - **Session Tracking**: Resumable via `.opencode-session-id`, audit metadata in `.opencode-session`

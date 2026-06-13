@@ -528,7 +528,7 @@ build_gen_cmd() {
       CLAUDE_FULL_PROMPT="$(cat "$RENDERED_PROMPT")
 
 $GEN_PROMPT"
-      GEN_CMD=("$HARNESS_CLI" --print --model "$HARNESS_MODEL_ID" --dangerously-skip-permissions --bare "$CLAUDE_FULL_PROMPT")
+      GEN_CMD=("$HARNESS_CLI" --print --model "$HARNESS_MODEL_ID" --dangerously-skip-permissions --safe-mode "$CLAUDE_FULL_PROMPT")
       if [ ! -z "$SESSION_ID" ]; then
         GEN_CMD+=(--resume "$SESSION_ID")
       fi
@@ -536,8 +536,13 @@ $GEN_PROMPT"
 
     codex)
       # Codex CLI exec: uses -C for working dir, HARNESS_MODEL_ID (no provider prefix)
+      # Prepend a directive to skip design/skill workflows and write code immediately,
+      # because Codex auto-loads the build-web-apps:frontend-app-builder skill which
+      # triggers a design-first (Image Gen) workflow that consumes the full timeout.
       local CODEX_FULL_PROMPT
-      CODEX_FULL_PROMPT="$(cat "$RENDERED_PROMPT")
+      CODEX_FULL_PROMPT="IMPORTANT: This is a code generation benchmark task. You MUST start writing code files to disk IMMEDIATELY. Do NOT use image generation, browser tools, or any design/visual skill. Do NOT enter a design phase or wait for approval. Skip all skills that require design review. Write the first file (e.g. backend/pom.xml or backend/build.gradle) within the first 30 seconds of this task. Write all required files in sequence without stopping.
+
+$(cat "$RENDERED_PROMPT")
 
 $GEN_PROMPT"
       GEN_CMD=("$HARNESS_CLI" exec -C "$OUTPUT_DIR" -m "$HARNESS_MODEL_ID" --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check "$CODEX_FULL_PROMPT")

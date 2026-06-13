@@ -229,6 +229,170 @@ EOF
   pass "api-tester.js matches the generated Spring Boot todo API contract"
 }
 
+run_api_todo_missing_id_smoke() {
+  local server_script="$TMP_DIR/api-missing-id-server.js"
+  local server_log="$TMP_DIR/api-missing-id-server.log"
+  local server_port="18998"
+
+  cat > "$server_script" <<'EOF'
+const http = require("http");
+
+const todos = [];
+
+const server = http.createServer((req, res) => {
+  const url = new URL(req.url, "http://localhost");
+
+  if (req.method === "GET" && url.pathname === "/api/todos") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(todos));
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/todos") {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk;
+    });
+    req.on("end", () => {
+      const todo = JSON.parse(body || "{}");
+      todos.push(todo);
+      res.writeHead(201, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(todo));
+    });
+    return;
+  }
+
+  res.writeHead(404, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ message: "Not found" }));
+});
+
+server.listen(process.env.PORT || 18998, "127.0.0.1");
+EOF
+
+  node "$server_script" > "$server_log" 2>&1 &
+  API_SERVER_PID=$!
+
+  sleep 1
+
+  if ! BENCHMARK_API_PORT="$server_port" node -e "const api=require(process.argv[1]); api.test('.', 'spring-boot').then((r) => { if (r.total !== 4 || r.failed !== 2) process.exit(1); }).catch((err) => { console.error(err); process.exit(1); });" "$ROOT_DIR/E2E_TESTS/helpers/api-tester.js"; then
+    fail "api-tester.js did not fail the missing-id follow-up checks"
+  fi
+
+  if [[ -n "$API_SERVER_PID" ]] && kill -0 "$API_SERVER_PID" 2>/dev/null; then
+    kill "$API_SERVER_PID" 2>/dev/null || true
+    wait "$API_SERVER_PID" 2>/dev/null || true
+  fi
+  API_SERVER_PID=""
+
+  pass "api-tester.js fails explicitly when POST /api/todos omits id"
+}
+
+run_health_requires_200_smoke() {
+  local server_script="$TMP_DIR/health-404-server.js"
+  local server_log="$TMP_DIR/health-404-server.log"
+  local server_port="4200"
+
+  cat > "$server_script" <<'EOF'
+const http = require("http");
+
+const server = http.createServer((req, res) => {
+  if (req.url === "/health") {
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("not ready");
+    return;
+  }
+
+  res.writeHead(404, { "Content-Type": "text/plain" });
+  res.end("not found");
+});
+
+server.listen(process.env.PORT || 4200, "127.0.0.1");
+EOF
+
+  node "$server_script" > "$server_log" 2>&1 &
+  API_SERVER_PID=$!
+
+  sleep 1
+
+  if ! node -e "const runner=require(process.argv[1]); runner.waitForHealth('.', { timeout: 1000 }).then((r) => { if (r.ready) process.exit(1); }).catch((err) => { console.error(err); process.exit(1); });" "$ROOT_DIR/E2E_TESTS/helpers/docker-runner.js"; then
+    fail "docker-runner.js still treats 404 as ready"
+  fi
+
+  if [[ -n "$API_SERVER_PID" ]] && kill -0 "$API_SERVER_PID" 2>/dev/null; then
+    kill "$API_SERVER_PID" 2>/dev/null || true
+    wait "$API_SERVER_PID" 2>/dev/null || true
+  fi
+  API_SERVER_PID=""
+
+  pass "docker-runner.js rejects 404 health responses"
+}
+
+run_e2e_merger_schema_smoke() {
+  local static_file="$TMP_DIR/static-results.json"
+  local e2e_file="$TMP_DIR/e2e-results.json"
+  local output_file="$TMP_DIR/merged-results.json"
+
+  cat > "$static_file" <<'EOF'
+{
+  "metadata": {
+    "evaluation_version": "4.0",
+    "evaluation_type": "comprehensive"
+  },
+  "quality": {
+    "overall_score": 80,
+    "tier": "Deployable",
+    "pass_rate": 0.8,
+    "test_count": 10,
+    "passed": 8,
+    "failed": 2,
+    "scores": {
+      "cartridge_structure": 80
+    }
+  }
+}
+EOF
+
+  cat > "$e2e_file" <<'EOF'
+{
+  "status": "partial",
+  "startedAt": "2026-06-13T00:00:00.000Z",
+  "finishedAt": "2026-06-13T00:01:00.000Z",
+  "phases": {
+    "build": {
+      "backend": { "status": "passed" },
+      "frontend": { "status": "passed" }
+    },
+    "docker": { "status": "started" },
+    "health": { "ready": true },
+    "api": {
+      "total": 2,
+      "passed": 1,
+      "failed": 1,
+      "tests": []
+    },
+    "frontend": {
+      "accessible": true,
+      "tests": []
+    }
+  }
+}
+EOF
+
+  if ! node "$ROOT_DIR/EVAL/e2e-results-merger.js" --static-results "$static_file" --e2e-results "$e2e_file" --output "$output_file" >/dev/null; then
+    fail "e2e-results-merger.js did not merge the schema sample"
+  fi
+
+  if ! node -e "const r=require(process.argv[1]); if (r.quality.static_test_count !== 10 || r.quality.static_passed !== 8 || r.quality.static_failed !== 2 || r.quality.test_count <= r.quality.static_test_count || r.quality.pass_rate !== r.quality.pass_rate_including_e2e) process.exit(1);" "$output_file"; then
+    fail "merged results did not expose static and merged counts correctly"
+  fi
+
+  if ! node -e "const r=require(process.argv[1]); if (r.metadata.evaluation_type !== 'comprehensive+e2e' || r.metadata.e2e_enabled !== true) process.exit(1);" "$output_file"; then
+    fail "merged results did not update metadata correctly"
+  fi
+
+  pass "e2e-results-merger.js keeps static and merged metrics separate"
+}
+
 run_e2e_build_failure_smoke() {
   local runner_dir="$TMP_DIR/e2e-build-fail"
   local helper_dir="$runner_dir/helpers"
@@ -525,6 +689,9 @@ main() {
   run_e2e_timeout_forwarding_smoke
   run_benchmark_health_timeout_forwarding_smoke
   run_api_todo_contract_smoke
+  run_api_todo_missing_id_smoke
+  run_health_requires_200_smoke
+  run_e2e_merger_schema_smoke
   run_e2e_build_failure_smoke
   run_e2e_cleanup_on_health_failure_smoke
   run_cleanup_reset_smoke

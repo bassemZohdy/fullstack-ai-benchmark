@@ -32,6 +32,10 @@ RESULTS/opencode-glm-5.1/spring-boot-angular/overview/evaluation-results.json
     "overall_score_before_e2e": 93,
     "e2e_impact": -1,
     "tier": "Production-Ready",
+    "static_pass_rate": 0.8840579710144928,
+    "static_test_count": 55,
+    "static_passed": 50,
+    "static_failed": 5,
     "pass_rate": 0.8840579710144928,
     "pass_rate_including_e2e": 0.8840579710144928,
     "test_count": 55,
@@ -63,5 +67,6 @@ RESULTS/opencode-glm-5.1/spring-boot-angular/overview/evaluation-results.json
 ## Notes
 
 - `runtime_validation` is only present when runtime testing runs
+- In merged results, top-level `quality.pass_rate`, `quality.test_count`, `quality.passed`, and `quality.failed` refer to the merged totals; static values are preserved under `static_*` fields
 - Token counts, session ids, and cost estimates are stored in `.opencode-session`, not in this file
 - Comparison summaries should use real benchmark data only

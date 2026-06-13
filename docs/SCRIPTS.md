@@ -32,7 +32,7 @@ Options:
 | `--health-timeout <ms>` | `120000` | no | E2E health/readiness timeout |
 | `--quiet true|false` | `false` | no | Suppress detailed output |
 
-The runtime benchmark currently supports Spring Boot + Angular only. Use other backend/frontend combinations for generation-only runs until matching evaluators exist.
+E2E runtime validation is supported for Spring Boot + Angular, Spring Boot + React, Node.js + Angular, and Node.js + React. Use `quarkus` with `--skip-e2e` for static analysis only.
 
 ## generate-project.sh
 

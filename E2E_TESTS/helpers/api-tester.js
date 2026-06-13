@@ -116,6 +116,20 @@ async function testSpringBoot(backend) {
       statusCode: deleteResponse.statusCode,
       error: deleteResponse.error
     });
+  } else {
+    const missingIdError = "POST /api/todos did not return a usable id";
+    tests.push({
+      name: "GET /api/todos/{id}",
+      status: "failed",
+      statusCode: createResponse.statusCode,
+      error: missingIdError
+    });
+    tests.push({
+      name: "DELETE /api/todos/{id}",
+      status: "failed",
+      statusCode: createResponse.statusCode,
+      error: missingIdError
+    });
   }
 
   return tests;

@@ -14,9 +14,9 @@ Use this skill to orient inside the benchmark repository before changing code, d
 - Root orchestration is Bash-only.
 - Do not add root Node.js scripts for benchmark orchestration.
 - Spec levels are `overview` and `detailed` only.
-- Runtime E2E support is currently implemented for Spring Boot + Angular only.
-- Generated workspaces live under `WORKSPACE/opencode-<model-slug>/<level>/`.
-- Permanent outputs live under `RESULTS/opencode-<model-slug>/<backend>-<frontend>/<level>/`.
+- Runtime E2E support is implemented for Spring Boot + Angular, Spring Boot + React, Node.js + Angular, Node.js + React. `quarkus` is generation + static-analysis only.
+- Generated workspaces live under `WORKSPACE/<harness>-<model-slug>/<level>/`.
+- Permanent outputs live under `RESULTS/<harness>-<model-slug>/<backend>-<frontend>/<level>/`.
 
 ## Find The Right File
 
@@ -25,7 +25,7 @@ Use this skill to orient inside the benchmark repository before changing code, d
 - Static evaluation: `scripts/eval-generated-project.sh` and `EVAL/`
 - Runtime validation: `scripts/run-e2e-tests.sh` and `E2E_TESTS/`
 - Repo docs: `README.md`, `docs/START.md`, `docs/SCRIPTS.md`, `docs/PROJECT_STATUS.md`, `docs/EVALUATION_SYSTEM.md`, `docs/E2E_TESTING.md`
-- Current cleanup notes: `TODO.md`
+- Supported value matrix: `scripts/benchmark-support.sh`
 
 ## Workflow
 

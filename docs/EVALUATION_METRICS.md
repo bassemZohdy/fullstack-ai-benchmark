@@ -35,14 +35,18 @@ E2E testing contributes 30 percent of the merged score when enabled.
 - Frontend accessibility
 - Cleanup
 
+Health/readiness requires an explicit successful health response. A bare `404` on `/health` is not treated as ready.
+
 ### API Contract
 
-The supported Spring Boot stack is checked against the generated todo API:
+The supported Spring Boot stack is checked against the generated todo API, and all four checks are expected to run:
 
 - `GET /api/todos`
 - `POST /api/todos`
 - `GET /api/todos/{id}`
 - `DELETE /api/todos/{id}`
+
+If `POST /api/todos` does not return a usable `id`, the follow-up detail and delete checks fail explicitly.
 
 ## Merged Score
 

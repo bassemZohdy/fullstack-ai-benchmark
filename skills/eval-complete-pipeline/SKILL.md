@@ -58,7 +58,7 @@ Generated Project
 | Parameter | Format | Example | Notes |
 |-----------|--------|---------|-------|
 | `--project-dir` | Path | `WORKSPACE/opencode-glm-5.1/overview` | Generated project location |
-| `--backend` | Name | `spring-boot`, `node-js` | Backend framework used |
+| `--backend` | Name | `spring-boot`, `node-js`, `quarkus` | Backend framework used; `quarkus` requires `--skip-e2e` |
 | `--frontend` | Name | `angular`, `react` | Frontend framework used |
 | `--results-dir` | Path | `RESULTS/opencode-glm-5.1/spring-boot-angular/overview` | Where to save results |
 

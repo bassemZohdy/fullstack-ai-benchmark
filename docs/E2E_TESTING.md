@@ -17,10 +17,18 @@ The benchmark is compile-first. If the project does not build, the runtime phase
   --results-file RESULTS/opencode-glm-5.1/spring-boot-angular/overview/e2e-results.json
 ```
 
-## Supported Stack
+## Supported Stacks
 
-- E2E evaluation is currently implemented for Spring Boot + Angular only
-- Other backend/frontend combinations remain generation-only until evaluator support is added
+E2E evaluation is implemented for all four combinations:
+
+| Backend | Frontend | Supported |
+| --- | --- | --- |
+| spring-boot | angular | ✅ |
+| spring-boot | react | ✅ |
+| node-js | angular | ✅ |
+| node-js | react | ✅ |
+
+`quarkus` is generation-only; no E2E runner is implemented for it.
 
 ## Runtime Contract
 

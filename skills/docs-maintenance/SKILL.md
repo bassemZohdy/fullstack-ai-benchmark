@@ -1,6 +1,6 @@
 ---
 name: docs-maintenance
-description: Keep benchmark docs, status pages, and result examples aligned with the implemented behavior. Use when editing `README.md`, `docs/`, `TODO.md`, or any user-facing claims about support and scoring.
+description: Keep benchmark docs, status pages, and result examples aligned with the implemented behavior. Use when editing `README.md`, `docs/`, or any user-facing claims about support and scoring.
 ---
 
 # Docs Maintenance
@@ -24,7 +24,8 @@ Use this skill when updating documentation that describes what the benchmark act
 - `docs/EVALUATION_SYSTEM.md`
 - `docs/RESULTS_FORMAT.md`
 - `docs/ARCHITECTURE.md`
-- `TODO.md`
+- `docs/SCRIPTS.md`
+- `docs/E2E_TESTING.md`
 
 ## Guardrails
 

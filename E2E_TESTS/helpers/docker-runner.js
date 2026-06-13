@@ -91,7 +91,8 @@ async function waitForHealth(projectDir, options = {}) {
 
   while (Date.now() - startTime <= timeout) {
     const probes = await Promise.all(ports.map((port) => probePort(port)));
-    const healthyProbe = probes.find((probe) => probe.open && (probe.statusCode === 200 || probe.statusCode === 404));
+    // Treat only an explicit healthy response as readiness.
+    const healthyProbe = probes.find((probe) => probe.open && probe.statusCode === 200);
 
     if (healthyProbe) {
       return {

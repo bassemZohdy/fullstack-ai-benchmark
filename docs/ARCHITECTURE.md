@@ -75,8 +75,8 @@ Contains the runtime validation harness.
 
 ## Supported Runtime Scope
 
-- E2E evaluation is currently implemented for Spring Boot + Angular only
-- Other backend/frontend combinations remain generation-only until evaluator support is added
+- E2E evaluation is implemented for Spring Boot + Angular, Spring Boot + React, Node.js + Angular, and Node.js + React
+- `quarkus` is supported for generation and static analysis; it has no E2E runner — use `--skip-e2e` with it
 
 ## Key Decisions
 

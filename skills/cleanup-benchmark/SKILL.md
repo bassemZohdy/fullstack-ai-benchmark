@@ -37,10 +37,10 @@ Use this skill when you need to remove generated projects, evaluation results, o
 
 | Parameter | Value | Example | Notes |
 |-----------|-------|---------|-------|
-| `--model` | Model ID | `GLM-5.1Z.AI`, `kimi/2.6` | Must match generation exactly |
+| `--model` | Model ID | `GLM-5.1Z.AI`, `kimi/2.6` | Must match the model used for generation |
 | `--level` | Spec level | `overview`, `detailed` | Only these two are supported |
-| `--backend` | Backend framework | `spring-boot`, `node-js`, `quarkus` | Must match generation |
-| `--frontend` | Frontend framework | `angular`, `react` | Must match generation |
+| `--backend` | Backend framework | `spring-boot`, `node-js`, `quarkus` | Must match the backend used for generation |
+| `--frontend` | Frontend framework | `angular`, `react` | Must match the frontend used for generation |
 
 ### Optional Parameters
 
@@ -87,20 +87,22 @@ Removes both workspace and results directories completely
 
 ## Model Slug Generation
 
-The script automatically generates the model slug from the model ID:
+The script uses `benchmark_slugify_model` from `scripts/benchmark-support.sh` to derive the workspace and results paths from the model ID and harness. The full directory prefix is `{harness}-{slug}`.
 
-| Model ID | Slug |
-|----------|------|
-| `GLM-5.1Z.AI` | `glm-5.1` |
-| `glm-5.1z.ai` | `glm-5.1` |
-| `kimi/2.6` | `kimi-2.6` |
-| `minimax/1.5` | `minimax-1.5` |
-| `xiaomi/mimo-2.5` | `xiaomi-mimo-2.5` |
+| Model ID | Harness | Full prefix |
+|----------|---------|-------------|
+| `GLM-5.1Z.AI` | `opencode` | `opencode-glm-5.1` |
+| `GLM-5.1Z.AI` | `pi` | `pi-glm-5.1` |
+| `kimi/2.6` | `opencode` | `opencode-kimi-2.6` |
+| `minimax/1.5` | `opencode` | `opencode-minimax-1.5` |
+| `xiaomi/mimo-2.5` | `opencode` | `opencode-xiaomi-mimo-2.5` |
 
 The slug is created by:
 1. Converting to lowercase
-2. Removing `.ai` and `z.ai` suffixes
-3. Replacing `/` and special chars with `-`
+2. For GLM models matching `glm-X.Yz.ai`, simplifying to `glm-X.Y`
+3. Replacing `/` with `-`
+4. Replacing remaining non-alphanumeric characters (except `.`, `-`, `_`) with `-`
+5. Collapsing repeated `-` and stripping leading/trailing `-`
 
 ## Working Examples
 
