@@ -408,6 +408,8 @@ if [ -z "$SESSION_FILE" ]; then
   case "$HARNESS" in
     pi)          SESSION_FILE="$OUTPUT_DIR/.pi-session-id" ;;
     mimo-code)   SESSION_FILE="$OUTPUT_DIR/.mimo-session-id" ;;
+    claude)      SESSION_FILE="$OUTPUT_DIR/.claude-session-id" ;;
+    codex)       SESSION_FILE="$OUTPUT_DIR/.codex-session-id" ;;
     *)           SESSION_FILE="$OUTPUT_DIR/.opencode-session-id" ;;
   esac
 fi
@@ -416,6 +418,8 @@ if [ -z "$SESSION_RECORD_FILE" ]; then
   case "$HARNESS" in
     pi)          SESSION_RECORD_FILE="$OUTPUT_DIR/.pi-session" ;;
     mimo-code)   SESSION_RECORD_FILE="$OUTPUT_DIR/.mimo-session" ;;
+    claude)      SESSION_RECORD_FILE="$OUTPUT_DIR/.claude-session" ;;
+    codex)       SESSION_RECORD_FILE="$OUTPUT_DIR/.codex-session" ;;
     *)           SESSION_RECORD_FILE="$OUTPUT_DIR/.opencode-session" ;;
   esac
 fi
@@ -517,7 +521,29 @@ build_gen_cmd() {
       fi
       GEN_CMD+=("$GEN_PROMPT")
       ;;
-    claude|codex|kilo-code)
+    claude)
+      # Claude Code: runs from OUTPUT_DIR (cd in run_generation_attempt)
+      # Uses HARNESS_MODEL_ID (not HARNESS_MODEL) — claude CLI takes bare model name/alias
+      local CLAUDE_FULL_PROMPT
+      CLAUDE_FULL_PROMPT="$(cat "$RENDERED_PROMPT")
+
+$GEN_PROMPT"
+      GEN_CMD=("$HARNESS_CLI" --print --model "$HARNESS_MODEL_ID" --dangerously-skip-permissions --bare "$CLAUDE_FULL_PROMPT")
+      if [ ! -z "$SESSION_ID" ]; then
+        GEN_CMD+=(--resume "$SESSION_ID")
+      fi
+      ;;
+
+    codex)
+      # Codex CLI exec: uses -C for working dir, HARNESS_MODEL_ID (no provider prefix)
+      local CODEX_FULL_PROMPT
+      CODEX_FULL_PROMPT="$(cat "$RENDERED_PROMPT")
+
+$GEN_PROMPT"
+      GEN_CMD=("$HARNESS_CLI" exec -C "$OUTPUT_DIR" -m "$HARNESS_MODEL_ID" --dangerously-bypass-approvals-and-sandbox --skip-git-repo-check "$CODEX_FULL_PROMPT")
+      ;;
+
+    kilo-code)
       echo -e "${RED}❌ ERROR: harness ${HARNESS} is scaffolded and not yet implemented${NC}" >&2
       echo "  See implementation guide: skills/harness-${HARNESS}/SKILL.md" >&2
       exit 1
@@ -575,7 +601,7 @@ process.stdin.on("end", () => {
       ;;
   esac
 
-  if [ ! -z "$latest_session" ]; then
+  if [ -n "$latest_session" ]; then
     SESSION_ID="$latest_session"
     mkdir -p "$(dirname "$SESSION_FILE")"
     printf '%s\n' "$SESSION_ID" > "$SESSION_FILE"
@@ -609,6 +635,7 @@ capture_latest_session_export() {
       : > "$SESSION_EXPORT_FILE"
       return 0
       ;;
+
   esac
 
   : > "$SESSION_EXPORT_FILE"
@@ -828,8 +855,8 @@ monitor_process_with_activity() {
 }
 
 run_generation_attempt() {
-  # PI requires running from the output directory since it doesn't have a --dir flag
-  if [ "$HARNESS" == "pi" ]; then
+  # PI and Claude require running from the output directory (no --dir flag)
+  if [ "$HARNESS" == "pi" ] || [ "$HARNESS" == "claude" ]; then
     (cd "$OUTPUT_DIR" && "${GEN_CMD[@]}") &
   else
     "${GEN_CMD[@]}" &
