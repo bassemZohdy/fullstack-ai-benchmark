@@ -39,7 +39,11 @@ The supported Spring Boot workspace is expected to expose the todo API under `/a
 - `GET /api/todos/{id}`
 - `DELETE /api/todos/{id}`
 
-The frontend is served from the generated Nginx/container path and is validated on common ports:
+The backend API readiness gate checks the Spring Boot service on its API port:
+
+- `8080`
+
+The frontend is served from the generated Nginx/container path and is validated separately on common ports:
 
 - `80`
 - `8080`
@@ -52,7 +56,7 @@ The frontend is served from the generated Nginx/container path and is validated 
 | --- | --- | --- |
 | Build | 8-15 min | Maven and npm builds dominate runtime |
 | Docker | 1-3 min | Compose startup and image availability |
-| Health | 30-120 sec | Polls common ports until an HTTP response appears |
+| Health | 30-120 sec | Polls the backend API port until an HTTP 200 appears |
 | API | 30-60 sec | CRUD contract checks for the todo backend |
 | Frontend | 30-60 sec | Verifies HTML serving and application paths |
 | Cleanup | 15-30 sec | Stops containers after testing |

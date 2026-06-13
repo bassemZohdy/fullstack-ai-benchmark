@@ -65,7 +65,10 @@ async function runE2ETests(projectDir, backend, frontend, options = {}) {
     }
 
     log("HEALTH", "Checking service health");
-    const healthCheck = await dockerRunner.waitForHealth(projectDir, { timeout: healthTimeout });
+    const healthCheck = await dockerRunner.waitForHealth(projectDir, {
+      timeout: healthTimeout,
+      port: Number(process.env.BENCHMARK_API_PORT || 8080)
+    });
     results.phases.health = healthCheck;
     log("HEALTH", healthCheck.ready ? "Services ready" : "Health check timeout");
 

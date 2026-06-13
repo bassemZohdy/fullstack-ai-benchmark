@@ -327,6 +327,46 @@ EOF
   pass "docker-runner.js rejects 404 health responses"
 }
 
+run_health_waits_for_backend_port_smoke() {
+  local server_script="$TMP_DIR/health-frontend-only-server.js"
+  local server_log="$TMP_DIR/health-frontend-only-server.log"
+  local server_port="4200"
+
+  cat > "$server_script" <<'EOF'
+const http = require("http");
+
+const server = http.createServer((req, res) => {
+  if (req.url === "/health") {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("ok");
+    return;
+  }
+
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("ok");
+});
+
+server.listen(process.env.PORT || 4200, "127.0.0.1");
+EOF
+
+  node "$server_script" > "$server_log" 2>&1 &
+  API_SERVER_PID=$!
+
+  sleep 1
+
+  if ! node -e "const runner=require(process.argv[1]); runner.waitForHealth('.', { timeout: 1000, port: 8080 }).then((r) => { if (r.ready) process.exit(1); }).catch((err) => { console.error(err); process.exit(1); });" "$ROOT_DIR/E2E_TESTS/helpers/docker-runner.js"; then
+    fail "docker-runner.js still treats frontend-only readiness as backend readiness"
+  fi
+
+  if [[ -n "$API_SERVER_PID" ]] && kill -0 "$API_SERVER_PID" 2>/dev/null; then
+    kill "$API_SERVER_PID" 2>/dev/null || true
+    wait "$API_SERVER_PID" 2>/dev/null || true
+  fi
+  API_SERVER_PID=""
+
+  pass "docker-runner.js waits for the backend port instead of any healthy port"
+}
+
 run_e2e_merger_schema_smoke() {
   local static_file="$TMP_DIR/static-results.json"
   local e2e_file="$TMP_DIR/e2e-results.json"
@@ -691,6 +731,7 @@ main() {
   run_api_todo_contract_smoke
   run_api_todo_missing_id_smoke
   run_health_requires_200_smoke
+  run_health_waits_for_backend_port_smoke
   run_e2e_merger_schema_smoke
   run_e2e_build_failure_smoke
   run_e2e_cleanup_on_health_failure_smoke

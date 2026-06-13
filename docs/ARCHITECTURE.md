@@ -68,7 +68,7 @@ Contains the runtime validation harness.
 
 - Validates build output first
 - Starts Docker Compose only after a successful build
-- Polls common ports for health/readiness
+- Polls the backend API port for health/readiness
 - Runs the todo API contract checks
 - Verifies frontend availability
 - Always attempts cleanup after Docker startup
