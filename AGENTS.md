@@ -2,14 +2,11 @@
 
 ## Project Structure & Module Organization
 
-This repository is a shell-orchestrated benchmark for generated full-stack projects. The root intentionally has no `package.json`.
+This repository is a harness-loaded benchmark for generated full-stack projects. The root intentionally has no `package.json`.
 
-- `scripts/`: benchmark orchestration scripts
-  - `render-prompt.sh`: Standalone prompt templating (reads template, specs, cartridges → final prompt)
-  - `generate-project.sh`: Project generation with harness orchestration (calls render-prompt.sh)
-  - `run-benchmark.sh`: Multi-model/level benchmark runner
-  - `eval-generated-project.sh`: Project evaluation orchestrator
-  - `test-setup.sh`: Local syntax and integration checks
+- `harness/`: skill discovery, validation, planning, workflow execution, and diagnostics
+- `skills/`: benchmark skill contracts, human-readable skill guides, skill-owned helpers, and shared runtime code
+- `scripts/`: compatibility/reference wrappers only; do not add orchestration logic here
 - `PROMPTS/`: specification levels (`overview.md`, `detailed.md`), prompt templates, and stack cartridges
 - `EVAL/`: self-contained evaluator; entry point is `EVAL/comprehensive-evaluator.js`
 - `E2E_TESTS/`: reserved compatibility area for future expanded E2E suites
@@ -21,7 +18,7 @@ This repository is a shell-orchestrated benchmark for generated full-stack proje
 
 **Test prompt rendering** (standalone):
 ```bash
-./scripts/render-prompt.sh \
+node skills/prompt-rendering/scripts/render-prompt.js \
   --template PROMPTS/templates/project-generation.md \
   --spec PROMPTS/overview.md \
   --backend-cartridge PROMPTS/cartridges/backend/spring-boot.md \
@@ -32,15 +29,15 @@ Renders final prompt without invoking harness. Useful for testing prompt logic.
 
 **Generate a single project**:
 ```bash
-./scripts/generate-project.sh \
+node harness/benchmark-harness.js run --workflow generate \
   --model GLM-5.1Z.AI --level overview \
   --backend spring-boot --frontend angular --provider z-ai
 ```
-Generates one project. Uses `render-prompt.sh` internally, invokes OpenCode harness.
+Generates one project. Uses the prompt-rendering skill internally and invokes the selected generation harness.
 
 **Run benchmark suite**:
 ```bash
-./scripts/run-benchmark.sh \
+node harness/benchmark-harness.js run --workflow benchmark \
   --model GLM-5.1Z.AI --level overview \
   --backend spring-boot --frontend angular --provider z-ai
 ```
@@ -48,7 +45,7 @@ Full benchmark with all selectors (model, level, backend, frontend).
 
 **Resume with session tracking**:
 ```bash
-./scripts/run-benchmark.sh \
+node harness/benchmark-harness.js run --workflow benchmark \
   --model GLM-5.1Z.AI --level overview \
   --backend spring-boot --frontend angular --provider z-ai --retries 5
 ```
@@ -56,7 +53,7 @@ Retries generation and resumes with `WORKSPACE/opencode-<model-slug>/<level>/.op
 
 **Complete evaluation** (static + E2E + merged metrics):
 ```bash
-./scripts/eval-complete.sh \
+node skills/eval-complete-pipeline/scripts/evaluate-complete.js \
   --project-dir WORKSPACE/opencode-glm-5.1/overview \
   --backend spring-boot --frontend angular \
   --model GLM-5.1Z.AI --level overview \
@@ -66,7 +63,7 @@ Runs static analysis, E2E tests, merges results into unified metrics (20-40 min 
 
 **Static evaluation only** (code structure and quality):
 ```bash
-./scripts/eval-generated-project.sh \
+node skills/evaluation-workflow/scripts/evaluate-static.js \
   --project-dir WORKSPACE/opencode-glm-5.1/overview \
   --backend spring-boot --frontend angular \
   --results-file RESULTS/opencode-glm-5.1/spring-boot-angular/overview/static-evaluation.json
@@ -75,7 +72,7 @@ Checks code organization, Docker config, build tools (5-10 seconds, no runtime t
 
 **E2E testing only** (build, deploy, and API validation):
 ```bash
-./scripts/run-e2e-tests.sh \
+node skills/e2e-testing/scripts/run-e2e.js \
   --project-dir WORKSPACE/opencode-glm-5.1/overview \
   --backend spring-boot --frontend angular \
   --results-file RESULTS/opencode-glm-5.1/spring-boot-angular/overview/e2e-execution.json
@@ -86,24 +83,24 @@ Builds projects, runs docker-compose, tests API/frontend (20-40 min per project,
 ```bash
 bash -n scripts/*.sh && node --check EVAL/comprehensive-evaluator.js E2E_TESTS/e2e-runner.js E2E_TESTS/helpers/*.js
 ```
-Validates script and evaluator syntax.
+Validates compatibility wrapper and evaluator syntax.
 
 ## Coding Style & Naming Conventions
 
-Keep root orchestration in Bash. Use quoted variables, arrays for commands, and fail-fast behavior. Do not use root Node.js scripts. Model directories must use normalized OpenCode-prefixed slugs, for example `GLM-5.1Z.AI` -> `opencode-glm-5.1` and `kimi/2.6` -> `opencode-kimi-2.6`.
+Keep root `scripts/*.sh` as thin Bash wrappers only. Put implementation in `skills/_shared`, `skills/<skill>/scripts/`, or `harness/`. Model directories must use normalized harness-prefixed slugs, for example `GLM-5.1Z.AI` -> `opencode-glm-5.1` and `kimi/2.6` -> `opencode-kimi-2.6`.
 
 Use concise Markdown in docs. Avoid invented benchmark scores; use `TBD` or `null` until real results exist.
 
 ## Testing Guidelines
 
 ### Static Evaluation
-Automated through `scripts/eval-generated-project.sh`, which calls `EVAL/comprehensive-evaluator.js`. Checks code structure, Docker configuration, and build tools. Generated output with no recognizable application structure must fail.
+Automated through `skills/evaluation-workflow/scripts/evaluate-static.js`, which calls `EVAL/comprehensive-evaluator.js`. Checks code structure, Docker configuration, and build tools. Generated output with no recognizable application structure must fail.
 
 ### E2E Testing
-End-to-end testing validates actual runtime behavior: builds projects, runs `docker compose up`, and tests API/frontend availability. Run via `scripts/run-e2e-tests.sh`:
+End-to-end testing validates actual runtime behavior: builds projects, runs `docker compose up`, and tests API/frontend availability. Run via the E2E skill helper:
 
 ```bash
-./scripts/run-e2e-tests.sh \
+node skills/e2e-testing/scripts/run-e2e.js \
   --project-dir WORKSPACE/opencode-glm-5.1/overview \
   --backend spring-boot \
   --frontend angular \

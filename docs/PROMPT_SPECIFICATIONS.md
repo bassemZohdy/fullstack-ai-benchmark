@@ -18,7 +18,7 @@ Expanded implementation specification. It includes functional requirements, tech
 
 ## Prompt Composition
 
-Generation does not use stack-specific prompt files. `scripts/generate-project.sh` renders one prompt from:
+Generation does not use stack-specific prompt files. The `project-generation` skill renders one prompt from:
 
 ```text
 PROMPTS/templates/project-generation.md
@@ -43,7 +43,7 @@ Frontend:
 ## Running One Prompt
 
 ```bash
-./scripts/run-benchmark.sh \
+node harness/benchmark-harness.js run --workflow benchmark \
   --model GLM-5.1Z.AI \
   --level overview \
   --backend spring-boot \
@@ -56,8 +56,8 @@ Frontend:
 Add a new built-in level only if it is added consistently to:
 
 - `PROMPTS/<level>.md`
-- `scripts/generate-project.sh` level validation
-- `scripts/generate-project.sh` cartridge selection
+- `skills/_shared/lib/benchmark.js` level validation
+- `skills/project-generation/scripts/generate-project.js` cartridge selection
 - documentation examples
 
-Add a new stack by creating the appropriate cartridge under `PROMPTS/cartridges/`. Use `run-benchmark.sh` with individual selectors.
+Add a new stack by creating the appropriate cartridge under `PROMPTS/cartridges/`. Use `node harness/benchmark-harness.js run --workflow benchmark` with individual selectors.
