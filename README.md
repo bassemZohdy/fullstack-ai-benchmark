@@ -1,6 +1,6 @@
 # Full-Stack Project Generation Benchmark
 
-**Status**: 🚀 Production-ready. All components validated. Full E2E evaluation for all supported stacks.
+**Status**: Harness-loaded skills model. The harness and skills are canonical; root scripts are retained as compatibility/reference wrappers.
 
 This repository benchmarks generated full-stack projects by combining static code analysis with compile-first runtime validation.
 
@@ -10,13 +10,14 @@ This repository benchmarks generated full-stack projects by combining static cod
 - Runs static evaluation against the generated workspace
 - Runs runtime validation when the stack is supported
 - Merges static and runtime results into a single report
+- Discovers benchmark skills, validates prerequisites, plans execution, runs steps, and records diagnostics through the harness
 
 ## Quick Start
 
 ### Static checks only
 
 ```bash
-./scripts/run-benchmark.sh \
+node harness/benchmark-harness.js run --workflow benchmark \
   --model GLM-5.1Z.AI --level overview \
   --backend spring-boot --frontend angular \
   --skip-e2e
@@ -25,7 +26,7 @@ This repository benchmarks generated full-stack projects by combining static cod
 ### Full pipeline with runtime validation
 
 ```bash
-./scripts/run-benchmark.sh \
+node harness/benchmark-harness.js run --workflow benchmark \
   --model GLM-5.1Z.AI --level overview \
   --backend spring-boot --frontend angular \
   --reset
@@ -34,6 +35,21 @@ This repository benchmarks generated full-stack projects by combining static cod
 The final report is written to:
 
 `RESULTS/opencode-glm-5.1/spring-boot-angular/overview/evaluation-results.json`
+
+### Preview the harness plan
+
+```bash
+node harness/benchmark-harness.js plan --workflow benchmark \
+  --model GLM-5.1Z.AI --level overview \
+  --backend spring-boot --frontend angular \
+  --skip-e2e
+```
+
+### Validate skill contracts
+
+```bash
+node harness/benchmark-harness.js validate
+```
 
 ## Reset Workflow
 
@@ -45,14 +61,29 @@ The final report is written to:
 
 ```text
 Input: model, level, backend, frontend
-  -> render-prompt.sh
-  -> generate-project.sh
-  -> eval-generated-project.sh
-  -> run-e2e-tests.sh (optional)
-  -> e2e-results-merger.js
+  -> harness/benchmark-harness.js
+  -> skills/*/skill.json
+  -> skill-owned helper scripts
+  -> EVAL/E2E runtime tools
 ```
 
 Compile-first validation means E2E stops if the project does not build.
+
+## Harness-Loaded Skills Model
+
+The harness is responsible for:
+
+- discovering skills from `skills/*/skill.json`
+- validating inputs, files, commands, credentials, and safe output paths
+- deciding execution order for workflows such as `benchmark`, `generate`, and `evaluate`
+- passing typed inputs into each skill
+- stopping on failed mandatory steps
+- running declared recovery hooks when safe
+- writing structured logs to `logs/harness/*.jsonl`
+
+Skill contracts execute reusable helpers under `skills/<skill>/scripts/` and shared functions under `skills/_shared/lib/`. Do not add benchmark orchestration logic to root scripts.
+
+The root `scripts/*.sh` files remain callable for older commands and quick reference, but docs and new automation should prefer the harness or skill-owned helpers directly.
 
 ## Supported Evaluation Stacks
 
@@ -80,7 +111,9 @@ The runtime probe for the supported stack checks the generated todo API contract
 ## Repository Layout
 
 ```text
-scripts/      benchmark orchestration scripts
+scripts/      compatibility/reference wrappers for existing CLI usage
+harness/      skill discovery, planning, validation, execution
+skills/       skill contracts, skill-owned helper scripts, shared skill runtime
 EVAL/         static evaluator and merge logic
 E2E_TESTS/    runtime validation harness
 PROMPTS/      specs, templates, and cartridges
@@ -96,6 +129,7 @@ docs/         architecture, scoring, and process docs
 - [docs/EVALUATION_SYSTEM.md](./docs/EVALUATION_SYSTEM.md)
 - [docs/EVALUATION_METRICS.md](./docs/EVALUATION_METRICS.md)
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- [harness/README.md](./harness/README.md)
 - [docs/RESULTS_FORMAT.md](./docs/RESULTS_FORMAT.md)
 - [docs/PROJECT_STATUS.md](./docs/PROJECT_STATUS.md)
 - [docs/E2E_TESTING.md](./docs/E2E_TESTING.md)

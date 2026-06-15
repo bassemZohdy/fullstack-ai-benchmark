@@ -8,20 +8,20 @@
 
 ### Project Generation
 
-- `scripts/generate-project.sh`
+- `project-generation` skill
 - OpenCode and PI harness support
 - Session tracking and retries
-- Prompt rendering via `scripts/render-prompt.sh`
+- Prompt rendering via `prompt-rendering` skill
 
 ### Static Code Evaluation
 
-- `scripts/eval-generated-project.sh`
+- `evaluation-workflow` skill
 - `EVAL/comprehensive-evaluator.js`
 - Static structure, quality, Docker, Kubernetes, and integration checks
 
 ### E2E Runtime Testing
 
-- `scripts/run-e2e-tests.sh`
+- `e2e-testing` skill
 - `E2E_TESTS/e2e-runner.js`
 - Build validation, Docker startup, health checks, todo API contract checks, frontend checks, cleanup
 
@@ -32,12 +32,12 @@
 
 ### Complete Pipeline Orchestration
 
-- `scripts/eval-complete.sh`
+- `eval-complete-pipeline` skill
 - Runs static evaluation, optional E2E validation, and result merging
 
 ### Benchmark Runner
 
-- `scripts/run-benchmark.sh`
+- `harness/benchmark-harness.js`
 - Generate -> evaluate flow for supported benchmark combinations
 - `--reset` support for clearing the selected workspace and results before reruns
 
@@ -46,22 +46,20 @@
 ### End-to-End Evaluation
 
 - Spring Boot + Angular
-
-### Generation-Only
-
 - Spring Boot + React
 - Node.js + Angular
 - Node.js + React
 
 ## Current Limitations
 
-- Runtime evaluation is not yet implemented for React or Node.js combinations
+- Quarkus combinations support static evaluation only (use `--skip-e2e`)
 - API validation is focused on the generated todo CRUD contract
 - Frontend checks validate accessibility and response behavior, not full browser workflows
 - Database validation and load testing are not implemented
 
 ## Notes
 
-- The benchmark system is operational for the supported end-to-end stack
-- Other stacks can still be generated, but their runtime evaluation support is still pending
-- Reset-based reruns are supported through `scripts/run-benchmark.sh --reset`
+- The benchmark system is operational for all Spring Boot and Node.js combinations with Angular and React
+- Quarkus stacks can be generated and statically evaluated; E2E testing is not yet supported for Quarkus
+- Reset-based reruns are supported through `node harness/benchmark-harness.js run --workflow benchmark --reset`
+- Root `scripts/*.sh` files remain as compatibility/reference wrappers only
