@@ -197,7 +197,10 @@ function testKubernetesConfiguration(projectDir) {
 
   // Validate Ingress if present
   if (hasIngress) {
-    const ingressContent = readFile(path.join(k8sDir, "ingress.yaml"));
+    const ingressPath = fs.existsSync(path.join(k8sDir, "ingress.yaml"))
+      ? path.join(k8sDir, "ingress.yaml")
+      : path.join(k8sDir, "ingress.yml");
+    const ingressContent = readFile(ingressPath);
     const hasIngressRules = /rules:|paths:/i.test(ingressContent);
 
     tests.push({

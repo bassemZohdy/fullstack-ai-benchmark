@@ -1,0 +1,85 @@
+{
+  "schemaVersion": "1.0",
+  "name": "eval-complete-pipeline",
+  "description": "Run static evaluation, optional E2E testing, merge metrics, and produce the final evaluation report.",
+  "supportedPlatforms": ["linux", "darwin", "win32"],
+  "supportedEnvironments": ["node", "docker"],
+  "requiredInputs": [
+    { "name": "projectDir", "description": "Generated project directory." },
+    { "name": "backend", "description": "Backend framework.", "allowedValues": ["node-js", "spring-boot", "quarkus"] },
+    { "name": "frontend", "description": "Frontend framework.", "allowedValues": ["react", "angular"] },
+    { "name": "resultsDir", "description": "Directory for final evaluation outputs." }
+  ],
+  "optionalInputs": [
+    { "name": "model", "description": "Model metadata." },
+    { "name": "provider", "description": "Provider metadata." },
+    { "name": "harness", "description": "Harness metadata.", "default": "opencode" },
+    { "name": "level", "description": "Spec level metadata." },
+    { "name": "buildTimeout", "description": "Build timeout in milliseconds.", "default": "900000" },
+    { "name": "composeTimeout", "description": "Docker compose startup timeout in milliseconds.", "default": "120000" },
+    { "name": "healthTimeout", "description": "Readiness timeout in milliseconds.", "default": "120000" }
+  ],
+  "prechecks": [
+    { "type": "command-available", "command": "node", "description": "Node.js is required for evaluation and merge steps." },
+    { "type": "command-available", "command": "docker", "description": "Docker is required when E2E is enabled." },
+    { "type": "dir-exists", "path": "${projectDir}", "description": "Generated project directory must exist." },
+    { "type": "runtime-supported", "description": "Complete evaluation requires a runtime-supported stack." },
+    { "type": "file-exists", "path": "EVAL/comprehensive-evaluator.js", "description": "Static evaluator must exist." },
+    { "type": "file-exists", "path": "EVAL/e2e-results-merger.js", "description": "Results merger must exist." },
+    { "type": "path-inside", "path": "${resultsDir}", "root": "RESULTS", "description": "Evaluation results must stay under RESULTS." }
+  ],
+  "execution": [
+    {
+      "name": "complete evaluation",
+      "command": [
+        "node",
+        "skills/eval-complete-pipeline/scripts/evaluate-complete.js",
+        "--project-dir",
+        "${projectDir}",
+        "--backend",
+        "${backend}",
+        "--frontend",
+        "${frontend}",
+        "--model",
+        "${model}",
+        "--level",
+        "${level}",
+        "--provider",
+        "${provider}",
+        "--harness",
+        "${harness}",
+        "--results-dir",
+        "${resultsDir}",
+        "--build-timeout",
+        "${buildTimeout}",
+        "--compose-timeout",
+        "${composeTimeout}",
+        "--health-timeout",
+        "${healthTimeout}"
+      ]
+    }
+  ],
+  "expectedOutputs": [
+    { "description": "Static evaluation report.", "path": "${resultsDir}/static-evaluation.json", "required": true },
+    { "description": "E2E execution report.", "path": "${resultsDir}/e2e-execution.json", "required": true },
+    { "description": "Merged final evaluation report.", "path": "${resultsDir}/evaluation-results.json", "required": true }
+  ],
+  "failureHandling": {
+    "stopOnFailure": true,
+    "diagnostics": [
+      "Static evaluation failures stop the pipeline immediately.",
+      "E2E failures are merged when possible, but the final process exits non-zero when runtime validation fails.",
+      "Inspect static-evaluation.json, e2e-execution.json, and logs/harness for root cause."
+    ]
+  },
+  "recovery": {
+    "instructions": [
+      "Use --skip-e2e to run static evaluation only for unsupported or intentionally static-only stacks.",
+      "Increase timeout inputs if build or readiness steps are slow but active.",
+      "Regenerate the project if failures are caused by invalid generated code."
+    ]
+  },
+  "validation": [
+    { "type": "file-exists", "path": "${resultsDir}/evaluation-results.json", "description": "Merged final report was produced." }
+  ]
+}

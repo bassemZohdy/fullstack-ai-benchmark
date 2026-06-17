@@ -35,7 +35,7 @@ function makeRequest(host, port, path, timeout = 5000) {
     });
 
     req.on("timeout", () => {
-      req.abort();
+      req.destroy();
       resolve({
         statusCode: null,
         success: false,

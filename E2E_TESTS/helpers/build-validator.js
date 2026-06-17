@@ -3,8 +3,14 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 
 const NPM_COMMAND = "npm";
-const MVN_COMMAND = "mvn";
 const USE_SHELL = process.platform === "win32";
+
+function getMvnCommand(backendDir) {
+  if (fs.existsSync(path.join(backendDir, "mvnw")) || fs.existsSync(path.join(backendDir, "mvnw.cmd"))) {
+    return USE_SHELL ? "mvnw.cmd" : "./mvnw";
+  }
+  return "mvn";
+}
 
 function buildSpringBoot(projectDir, timeout) {
   const backendDir = path.join(projectDir, "backend");
@@ -25,7 +31,7 @@ function buildSpringBoot(projectDir, timeout) {
 
   const startedAt = Date.now();
   // Run: mvn clean package -q (quiet mode)
-  const result = spawnSync(MVN_COMMAND, ["clean", "package", "-q", "-DskipTests"], {
+  const result = spawnSync(getMvnCommand(backendDir), ["clean", "package", "-q", "-DskipTests"], {
     cwd: backendDir,
     encoding: "utf8",
     timeout,

@@ -1,0 +1,20 @@
+# Benchmark Runner
+
+When asked to run a benchmark, execute these steps end-to-end:
+
+## Parameters (ask if missing)
+
+- Spec level: `overview` or `detailed` (default: `overview`)
+- Backend: `spring-boot`, `node-js`, `quarkus` (default: `spring-boot`)
+- Frontend: `angular`, `react` (default: `angular`)
+- Output dir: `./benchmark-output` (default)
+
+## Steps
+
+1. Read `PROMPTS/{level}.md`, `PROMPTS/cartridges/backend/{backend}.md`, `PROMPTS/cartridges/frontend/{frontend}.md`
+2. Generate full-stack project in output dir: `backend/`, `frontend/`, `Dockerfile`, `docker-compose.yml`, `k8s/`, `.env.example`, `README.md`, tests
+3. Validate: all required files exist, build files valid, Docker config correct, tests present
+4. Run `node EVAL/comprehensive-evaluator.js --project-dir {output-dir} --backend {backend} --frontend {frontend}` or manually score per `skills/benchmark-runner/references/evaluation-criteria.md`
+5. Report: structure checklist, score, tier, file count
+
+Build strategy: minimal compileable scaffold first, simplest working implementation, prioritize compileability over features.

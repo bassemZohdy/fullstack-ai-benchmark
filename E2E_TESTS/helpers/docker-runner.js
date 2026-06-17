@@ -91,7 +91,7 @@ async function waitForHealth(projectDir, options = {}) {
 
   while (Date.now() - startTime <= timeout) {
     const probe = await probePort(port);
-    if (probe.open && probe.statusCode === 200) {
+    if (probe.open && probe.statusCode >= 200 && probe.statusCode < 300) {
       return {
         ready: true,
         duration: Date.now() - startTime,

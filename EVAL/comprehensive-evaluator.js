@@ -117,14 +117,17 @@ function evaluateCodeQuality(projectDir) {
     details: organized ? "" : describeSupportedLayout()
   });
 
-  // Check for Docker directory
-  const hasDocker = fs.existsSync(path.join(projectDir, "Dockerfile")) ||
-                   (fs.existsSync(path.join(projectDir, "backend")) &&
-                    fs.existsSync(path.join(projectDir, "backend", "Dockerfile")));
+  // Check for Docker configuration
+  const hasRootDockerfile = fs.existsSync(path.join(projectDir, "Dockerfile"));
+  const hasBackendDockerfile = fs.existsSync(path.join(projectDir, "backend")) &&
+                               fs.existsSync(path.join(projectDir, "backend", "Dockerfile"));
+  const hasFrontendDockerfile = fs.existsSync(path.join(projectDir, "frontend")) &&
+                                fs.existsSync(path.join(projectDir, "frontend", "Dockerfile"));
+  const hasDocker = hasRootDockerfile || (hasBackendDockerfile && hasFrontendDockerfile);
   tests.push({
     name: "Docker configuration present",
     status: hasDocker ? "passed" : "failed",
-    details: hasDocker ? "" : "No Dockerfile found"
+    details: hasDocker ? "" : "Missing Dockerfile (need root Dockerfile or both backend/ and frontend/ Dockerfiles)"
   });
 
   const passed = tests.filter(t => t.status === "passed").length;

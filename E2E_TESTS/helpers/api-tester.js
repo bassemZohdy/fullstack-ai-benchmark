@@ -38,7 +38,7 @@ function makeRequest(host, port, path, method = "GET", timeout = 5000, body = nu
     });
 
     req.on("timeout", () => {
-      req.abort();
+      req.destroy();
       resolve({
         statusCode: null,
         success: false,
@@ -62,12 +62,12 @@ function parseJsonBody(data) {
   }
 }
 
-async function testSpringBoot(backend) {
+async function testSpringBoot(backend, timeout = 5000) {
   const tests = [];
   const apiPort = Number(process.env.BENCHMARK_API_PORT || 8080);
 
   // Test the todo API contract exposed by the generated Spring Boot app.
-  const listResponse = await makeRequest("localhost", apiPort, "/api/todos");
+  const listResponse = await makeRequest("localhost", apiPort, "/api/todos", "GET", timeout);
   tests.push({
     name: "GET /api/todos",
     status: listResponse.success && Array.isArray(parseJsonBody(listResponse.data)) ? "passed" : "failed",
@@ -80,7 +80,7 @@ async function testSpringBoot(backend) {
     apiPort,
     "/api/todos",
     "POST",
-    5000,
+    timeout,
     JSON.stringify({
       title: "Evaluator smoke todo",
       description: "Created by the benchmark API probe",
@@ -96,7 +96,7 @@ async function testSpringBoot(backend) {
 
   const createdTodo = parseJsonBody(createResponse.data);
   if (createdTodo && createdTodo.id != null) {
-    const detailResponse = await makeRequest("localhost", apiPort, `/api/todos/${createdTodo.id}`);
+    const detailResponse = await makeRequest("localhost", apiPort, `/api/todos/${createdTodo.id}`, "GET", timeout);
     tests.push({
       name: `GET /api/todos/${createdTodo.id}`,
       status: detailResponse.success ? "passed" : "failed",
@@ -108,7 +108,8 @@ async function testSpringBoot(backend) {
       "localhost",
       apiPort,
       `/api/todos/${createdTodo.id}`,
-      "DELETE"
+      "DELETE",
+      timeout
     );
     tests.push({
       name: `DELETE /api/todos/${createdTodo.id}`,
@@ -135,11 +136,12 @@ async function testSpringBoot(backend) {
   return tests;
 }
 
-async function testNodeJs(backend) {
+async function testNodeJs(backend, timeout = 5000) {
   const tests = [];
+  const port = Number(process.env.BENCHMARK_API_PORT || 3001);
 
   // Test basic health check
-  const healthCheck = await makeRequest("localhost", 3001, "/health");
+  const healthCheck = await makeRequest("localhost", port, "/health", "GET", timeout);
   tests.push({
     name: "Health endpoint responds",
     status: healthCheck.success ? "passed" : "failed",
@@ -154,7 +156,7 @@ async function testNodeJs(backend) {
   ];
 
   for (const endpoint of endpoints) {
-    const result = await makeRequest("localhost", 3001, endpoint.path, endpoint.method);
+    const result = await makeRequest("localhost", port, endpoint.path, endpoint.method, timeout);
     tests.push({
       name: endpoint.name,
       status: result.success ? "passed" : "failed",
@@ -172,9 +174,9 @@ async function test(projectDir, backend, options = {}) {
 
   try {
     if (backend === "spring-boot") {
-      tests = await testSpringBoot(backend);
+      tests = await testSpringBoot(backend, timeout);
     } else if (backend === "node-js") {
-      tests = await testNodeJs(backend);
+      tests = await testNodeJs(backend, timeout);
     } else {
       return {
         total: 0,

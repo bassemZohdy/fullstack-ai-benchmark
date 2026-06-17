@@ -2,6 +2,15 @@
 
 Project-specific skills for the full-stack AI benchmark project. Each skill documents a major workflow with comprehensive details to ensure consistent outcomes across different agents.
 
+Machine-loadable skill contracts live beside the human-readable guides as `skills/<name>/skill.json`. The harness discovers those contracts, validates inputs, builds execution plans, runs steps, and writes diagnostics.
+
+Reusable implementation logic lives in `skills/_shared/lib/benchmark.js`. Per-skill executable helpers live in `skills/<name>/scripts/`. Root `scripts/*.sh` files are compatibility wrappers only.
+
+```bash
+node harness/benchmark-harness.js list
+node harness/benchmark-harness.js validate
+```
+
 ## Core Skills
 
 | Skill | Purpose | Script(s) |
@@ -147,10 +156,10 @@ Each skill includes:
 
 All skills are verified against the actual script implementations. Key invariants:
 
-- `benchmark-support.sh` is the single source of truth for valid levels, backends, frontends, harnesses, and providers
+- `skills/_shared/lib/benchmark.js` is the single source of truth for valid levels, backends, frontends, harnesses, providers, path derivation, and reusable helper functions
 - `quarkus` is a valid backend for generation and static evaluation but not for E2E — always pair it with `--skip-e2e`
 - E2E timeout params (`--build-timeout`, `--compose-timeout`, `--health-timeout`) are forwarded from `eval-complete.sh` through to `run-e2e-tests.sh`
-- Workspace and results paths use the `{harness}-{model-slug}` prefix derived by `benchmark_slugify_model` in `benchmark-support.sh`
+- Workspace and results paths use the `{harness}-{model-slug}` prefix derived by `slugifyModel` in `skills/_shared/lib/benchmark.js`
 
 ## Related Documentation
 

@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "1.0",
+  "name": "environment-setup",
+  "description": "Validate repository structure, required tools, harness/provider setup, and evaluator syntax.",
+  "supportedPlatforms": ["linux", "darwin", "win32"],
+  "supportedEnvironments": ["node"],
+  "requiredInputs": [],
+  "optionalInputs": [
+    { "name": "harness", "description": "Harness to validate.", "default": "opencode" },
+    { "name": "provider", "description": "Provider to validate.", "default": "z-ai" },
+    { "name": "autoApprove", "description": "Allow harness permission auto-approval during generation test.", "default": "true" },
+    { "name": "retries", "description": "Generation test retries.", "default": "3" },
+    { "name": "keepTestFiles", "description": "Keep generated setup-test artifacts.", "default": false }
+  ],
+  "prechecks": [
+    { "type": "command-available", "command": "node", "description": "Node.js is required for evaluator syntax checks." },
+    { "type": "dir-exists", "path": "scripts", "description": "scripts/ directory must exist." },
+    { "type": "dir-exists", "path": "PROMPTS", "description": "PROMPTS/ directory must exist." },
+    { "type": "dir-exists", "path": "EVAL", "description": "EVAL/ directory must exist." }
+  ],
+  "execution": [
+    {
+      "name": "run setup validation",
+      "command": [
+        "node",
+        "skills/environment-setup/scripts/validate-setup.js",
+        "--harness",
+        "${harness}",
+        "--provider",
+        "${provider}",
+        "--auto-approve",
+        "${autoApprove}",
+        "--retries",
+        "${retries}"
+      ],
+      "optionalArgs": [
+        { "input": "keepTestFiles", "args": ["--keep-test-files"] }
+      ]
+    }
+  ],
+  "expectedOutputs": [
+    { "description": "Setup validation exits successfully and optionally produces WORKSPACE/.test-setup.", "required": false }
+  ],
+  "failureHandling": {
+    "stopOnFailure": true,
+    "diagnostics": [
+      "Check missing directories, missing harness CLI, provider credentials, or evaluator syntax failures.",
+      "Setup validation may perform a real generation run unless the underlying script is changed."
+    ]
+  },
+  "recovery": {
+    "instructions": [
+      "Install missing tools or configure credentials, then rerun setup validation.",
+      "Use --keep-test-files when inspecting failed setup generation output."
+    ]
+  },
+  "validation": []
+}

@@ -8,6 +8,7 @@ The application must include:
 - A user-facing frontend for listing, creating, updating, completing, and deleting todos
 - A backend API for todo persistence
 - Basic validation and error handling
+- Automated backend and frontend tests
 - Docker support
 - Kubernetes manifests
 - Environment configuration example
@@ -17,3 +18,4 @@ The application must include:
 - Place all backend files under `backend/` and all frontend files under `frontend/`
 
 Use the selected backend and frontend cartridges for implementation details.
+Write a minimal compileable scaffold first, then fill in the remaining features and support files.

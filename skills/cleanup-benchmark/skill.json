@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "1.0",
+  "name": "cleanup-benchmark",
+  "description": "Safely remove selected generated workspace and result directories before or after a benchmark run.",
+  "supportedPlatforms": ["linux", "darwin", "win32"],
+  "supportedEnvironments": ["node"],
+  "requiredInputs": [
+    { "name": "model", "description": "Model identifier used to derive benchmark paths." },
+    { "name": "level", "description": "Specification level.", "allowedValues": ["overview", "detailed"] },
+    { "name": "backend", "description": "Backend framework.", "allowedValues": ["node-js", "spring-boot", "quarkus"] },
+    { "name": "frontend", "description": "Frontend framework.", "allowedValues": ["react", "angular"] }
+  ],
+  "optionalInputs": [
+    { "name": "harness", "description": "Harness name.", "default": "opencode" },
+    { "name": "scope", "description": "Cleanup scope.", "default": "all", "allowedValues": ["workspace", "results", "all"] }
+  ],
+  "prechecks": [
+    { "type": "input-enum", "name": "level", "values": ["overview", "detailed"], "description": "The spec level must be supported." },
+    { "type": "input-enum", "name": "backend", "values": ["node-js", "spring-boot", "quarkus"], "description": "The backend must be supported." },
+    { "type": "input-enum", "name": "frontend", "values": ["react", "angular"], "description": "The frontend must be supported." },
+    { "type": "input-enum", "name": "harness", "values": ["opencode", "pi", "claude", "codex", "kilo-code", "mimo-code"], "description": "The harness must be supported." },
+    { "type": "input-enum", "name": "scope", "values": ["workspace", "results", "all"], "description": "Cleanup scope must be safe and explicit." },
+    { "type": "path-inside", "path": "${outputDir}", "root": "WORKSPACE", "description": "Workspace cleanup target must stay under WORKSPACE." },
+    { "type": "path-inside", "path": "${resultsDir}", "root": "RESULTS", "description": "Results cleanup target must stay under RESULTS." }
+  ],
+  "execution": [
+    {
+      "name": "cleanup selected benchmark artifacts",
+      "command": [
+        "node",
+        "skills/cleanup-benchmark/scripts/cleanup.js",
+        "--model",
+        "${model}",
+        "--level",
+        "${level}",
+        "--backend",
+        "${backend}",
+        "--frontend",
+        "${frontend}",
+        "--harness",
+        "${harness}",
+        "--scope",
+        "${scope}"
+      ],
+      "optionalArgs": [
+        { "input": "quiet", "args": ["--quiet"] }
+      ]
+    }
+  ],
+  "expectedOutputs": [
+    { "description": "Selected workspace/results artifacts are absent after cleanup.", "required": false }
+  ],
+  "failureHandling": {
+    "stopOnFailure": true,
+    "diagnostics": [
+      "Cleanup refuses paths outside WORKSPACE and RESULTS.",
+      "Use --scope workspace, --scope results, or --scope all to narrow deletion."
+    ]
+  },
+  "recovery": {
+    "instructions": [
+      "If cleanup refuses a path, inspect benchmark path derivation rather than forcing deletion.",
+      "Manual deletion should only target resolved paths under WORKSPACE or RESULTS."
+    ]
+  },
+  "validation": []
+}

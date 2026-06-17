@@ -44,3 +44,5 @@ Build a production-oriented full-stack todo application for the selected backend
 - Place all backend files under `backend/` and all frontend files under `frontend/`.
 - Do not create an extra wrapper project directory.
 - The project must compile successfully and start in development mode with `docker compose up`.
+- Build a minimal compileable scaffold first, then expand to the full feature set.
+- Prefer the smallest working architecture that satisfies the contract.

@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fullstack-ai-benchmark.local/harness/schemas/skill.schema.json",
+  "title": "Benchmark Harness Skill",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "name",
+    "description",
+    "supportedPlatforms",
+    "supportedEnvironments",
+    "requiredInputs",
+    "prechecks",
+    "execution",
+    "expectedOutputs",
+    "failureHandling",
+    "recovery",
+    "validation"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "description": {
+      "type": "string"
+    },
+    "supportedPlatforms": {
+      "type": "array",
+      "items": {
+        "enum": ["linux", "darwin", "win32"]
+      },
+      "minItems": 1
+    },
+    "supportedEnvironments": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "requiredInputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/input"
+      }
+    },
+    "optionalInputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/input"
+      },
+      "default": []
+    },
+    "prechecks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/precheck"
+      }
+    },
+    "execution": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/executionStep"
+      },
+      "minItems": 1
+    },
+    "expectedOutputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/output"
+      }
+    },
+    "failureHandling": {
+      "type": "object",
+      "required": ["stopOnFailure", "diagnostics"],
+      "properties": {
+        "stopOnFailure": {
+          "type": "boolean"
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "recovery": {
+      "type": "object",
+      "required": ["instructions"],
+      "properties": {
+        "instructions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/executionStep"
+          },
+          "default": []
+        }
+      }
+    },
+    "validation": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/precheck"
+      }
+    }
+  },
+  "$defs": {
+    "input": {
+      "type": "object",
+      "required": ["name", "description"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "default": {},
+        "allowedValues": {
+          "type": "array"
+        }
+      }
+    },
+    "precheck": {
+      "type": "object",
+      "required": ["type", "description"],
+      "properties": {
+        "type": {
+          "enum": [
+            "input-required",
+            "input-enum",
+            "file-exists",
+            "dir-exists",
+            "command-available",
+            "env-set",
+            "runtime-supported",
+            "path-inside"
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "values": {
+          "type": "array"
+        },
+        "root": {
+          "type": "string"
+        },
+        "whenInputEquals": {
+          "type": "object",
+          "required": ["name", "value"],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "value": {}
+          }
+        }
+      }
+    },
+    "executionStep": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "builtin": {
+          "type": "string"
+        },
+        "command": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "optionalArgs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["input", "args"],
+            "properties": {
+              "input": {
+                "type": "string"
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": []
+        },
+        "whenInputEquals": {
+          "type": "object",
+          "required": ["name", "value"],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "value": {}
+          }
+        },
+        "with": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "timeoutSecondsInput": {
+          "type": "string"
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "required": ["description"],
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    }
+  }
+}

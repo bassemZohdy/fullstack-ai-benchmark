@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "1.0",
+  "name": "prompt-rendering",
+  "description": "Render the final benchmark prompt from a template, spec level, backend cartridge, and frontend cartridge.",
+  "supportedPlatforms": ["linux", "darwin", "win32"],
+  "supportedEnvironments": ["node"],
+  "requiredInputs": [
+    { "name": "level", "description": "Specification level.", "allowedValues": ["overview", "detailed"] },
+    { "name": "backend", "description": "Backend cartridge name.", "allowedValues": ["node-js", "spring-boot", "quarkus"] },
+    { "name": "frontend", "description": "Frontend cartridge name.", "allowedValues": ["react", "angular"] }
+  ],
+  "optionalInputs": [
+    { "name": "template", "description": "Prompt template path.", "default": "PROMPTS/templates/project-generation.md" },
+    { "name": "specFile", "description": "Specification markdown path.", "default": "PROMPTS/${level}.md" },
+    { "name": "backendCartridge", "description": "Backend cartridge path.", "default": "PROMPTS/cartridges/backend/${backend}.md" },
+    { "name": "frontendCartridge", "description": "Frontend cartridge path.", "default": "PROMPTS/cartridges/frontend/${frontend}.md" },
+    { "name": "output", "description": "Optional rendered prompt output file." }
+  ],
+  "prechecks": [
+    { "type": "input-required", "name": "level", "description": "A spec level is required." },
+    { "type": "input-enum", "name": "level", "values": ["overview", "detailed"], "description": "The spec level must be supported." },
+    { "type": "input-enum", "name": "backend", "values": ["node-js", "spring-boot", "quarkus"], "description": "The backend cartridge must be supported." },
+    { "type": "input-enum", "name": "frontend", "values": ["react", "angular"], "description": "The frontend cartridge must be supported." },
+    { "type": "command-available", "command": "node", "description": "Node.js is required for prompt rendering." },
+    { "type": "file-exists", "path": "${template}", "description": "Prompt template must exist." },
+    { "type": "file-exists", "path": "${specFile}", "description": "Specification file must exist." },
+    { "type": "file-exists", "path": "${backendCartridge}", "description": "Backend cartridge must exist." },
+    { "type": "file-exists", "path": "${frontendCartridge}", "description": "Frontend cartridge must exist." }
+  ],
+  "execution": [
+    {
+      "name": "render prompt",
+      "command": [
+        "node",
+        "skills/prompt-rendering/scripts/render-prompt.js",
+        "--template",
+        "${template}",
+        "--spec-file",
+        "${specFile}",
+        "--backend-cartridge",
+        "${backendCartridge}",
+        "--frontend-cartridge",
+        "${frontendCartridge}",
+        "--level",
+        "${level}",
+        "--backend",
+        "${backend}",
+        "--frontend",
+        "${frontend}"
+      ],
+      "optionalArgs": [
+        { "input": "output", "args": ["--output", "${output}"] }
+      ]
+    }
+  ],
+  "expectedOutputs": [
+    { "description": "Rendered prompt is written to stdout or the requested output file.", "path": "${output}", "required": false }
+  ],
+  "failureHandling": {
+    "stopOnFailure": true,
+    "diagnostics": [
+      "Check that the template still uses the expected replacement tokens.",
+      "Check that the requested spec and cartridges exist."
+    ]
+  },
+  "recovery": {
+    "instructions": [
+      "Fix missing prompt source files or unsupported stack inputs, then rerun the skill.",
+      "Do not patch rendered prompt output directly; update the source template, spec, or cartridge."
+    ]
+  },
+  "validation": [
+    { "type": "file-exists", "path": "${output}", "description": "Rendered prompt output file exists when output was requested.", "whenInputEquals": { "name": "output", "value": true } }
+  ]
+}

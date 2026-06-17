@@ -4,6 +4,7 @@ RESULTS/
 
 # Local assistant state
 .claude/
+.mimocode/
 .remember/
 
 # OS and editor noise
@@ -13,6 +14,8 @@ Thumbs.db
 *.tmp
 
 # Logs
+logs/
+logs/**
 *.log
 npm-debug.log*
 yarn-debug.log*
