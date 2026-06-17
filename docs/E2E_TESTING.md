@@ -10,7 +10,7 @@ The benchmark is compile-first. If the project does not build, the runtime phase
 ## Usage
 
 ```bash
-node skills/e2e-testing/scripts/run-e2e.js \
+./scripts/run-e2e-tests.sh \
   --project-dir WORKSPACE/opencode-glm-5.1/overview \
   --backend spring-boot \
   --frontend angular \
@@ -116,7 +116,7 @@ The frontend is served from the generated Nginx/container path and is validated 
 ## Customization
 
 ```bash
-node skills/e2e-testing/scripts/run-e2e.js \
+./scripts/run-e2e-tests.sh \
   --project-dir WORKSPACE/opencode-glm-5.1/overview \
   --backend spring-boot \
   --frontend angular \
@@ -146,5 +146,4 @@ Defaults are:
 - `E2E_TESTS/helpers/docker-runner.js` - Docker lifecycle and readiness checks
 - `E2E_TESTS/helpers/api-tester.js` - Todo API contract checks
 - `E2E_TESTS/helpers/frontend-tester.js` - Frontend checks
-- `skills/e2e-testing/scripts/run-e2e.js` - Canonical skill helper
-- `scripts/run-e2e-tests.sh` - Compatibility/reference wrapper
+- `scripts/run-e2e-tests.sh` - Bash wrapper

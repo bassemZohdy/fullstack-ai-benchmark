@@ -3,13 +3,13 @@
 ## 1. Validate Tools
 
 ```bash
-node skills/environment-setup/scripts/validate-setup.js --harness opencode --provider z-ai --auto-approve true --retries 3
+./scripts/test-setup.sh --harness opencode --provider z-ai --auto-approve true --retries 3
 ```
 
 ## 2. Run GLM Workflow Validation
 
 ```bash
-node harness/benchmark-harness.js run --workflow benchmark \
+./scripts/run-benchmark.sh \
   --model GLM-5.1Z.AI \
   --level overview \
   --backend spring-boot \
@@ -33,7 +33,7 @@ After validation works, run benchmarks with different models and stacks using Op
 
 ```bash
 export OPENROUTER_API_KEY="your-key"
-node harness/benchmark-harness.js run --workflow benchmark --model kimi/2.6 --level overview --backend spring-boot --frontend angular --provider openrouter
+./scripts/run-benchmark.sh --model kimi/2.6 --level overview --backend spring-boot --frontend angular --provider openrouter
 ```
 
 ## Notes
@@ -48,7 +48,6 @@ node harness/benchmark-harness.js run --workflow benchmark --model kimi/2.6 --le
 - Built-in levels are `overview` and `detailed`
 - Active level workspaces are cleared before generation; `.opencode-session-id` is preserved and `.opencode-session` is refreshed
 - The root project intentionally has no `package.json`
-- Root `scripts/*.sh` files remain as compatibility/reference wrappers for older commands
 
 ## Troubleshooting
 

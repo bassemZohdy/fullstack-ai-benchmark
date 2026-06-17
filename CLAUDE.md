@@ -19,37 +19,37 @@ This repository benchmarks full-stack project generation across tools, models, a
 
 ## Prompt and Workspace Rules
 
-- **Prompt Templating**: Use `skills/prompt-rendering/scripts/render-prompt.js` to build final prompts from `PROMPTS/templates/project-generation.md`, the selected spec file, and backend/frontend cartridges. This helper is separate from project generation for clean separation of concerns.
+- **Prompt Templating**: Use `scripts/render-prompt.sh` to build final prompts from `PROMPTS/templates/project-generation.md`, the selected spec file, and backend/frontend cartridges. This script is separate from project generation for clean separation of concerns.
 - Keep backend and frontend in separate top-level directories inside each generated project.
 - Require successful compilation and `docker compose up` for both spec levels.
 - Let OpenCode generate the project `README.md`; do not copy a template README into the workspace.
 - Preserve `.opencode-session-id` as the latest resumable session id.
 - Store detailed retry metadata, token counts, and estimated cost in `.opencode-session` (includes generation inputs for auditing).
 
-## Harness and Skill Contract
+## Script Contract
 
-Use the harness and skill helpers as the canonical interface:
+Use the generic scripts only:
 
 ```bash
-node skills/prompt-rendering/scripts/render-prompt.js       # Prompt templating
-node harness/benchmark-harness.js run --workflow generate   # Project generation
-node skills/evaluation-workflow/scripts/evaluate-static.js  # Static code evaluation
-node skills/e2e-testing/scripts/run-e2e.js                  # E2E runtime testing
-node skills/eval-complete-pipeline/scripts/evaluate-complete.js
-node harness/benchmark-harness.js run --workflow benchmark  # Full benchmark execution
-node skills/environment-setup/scripts/validate-setup.js     # Local smoke check
+./scripts/render-prompt.sh            # Prompt templating (reusable)
+./scripts/generate-project.sh         # Project generation orchestration
+./scripts/eval-generated-project.sh   # Static code evaluation only
+./scripts/run-e2e-tests.sh            # E2E runtime testing (build, docker, API)
+./scripts/eval-complete.sh            # Complete evaluation (static + E2E + merge)
+./scripts/run-benchmark.sh            # Full benchmark execution
+./scripts/test-setup.sh               # Local smoke check
 ```
 
-The root `scripts/*.sh` files are compatibility/reference wrappers for older commands. Keep them thin and put implementation under `harness/`, `skills/_shared`, or `skills/<skill>/scripts/`.
+Repo-scoped Codex skills live in `.agents/skills/`. They are guidance for agents working on the benchmark project, not runtime workflow contracts. Do not route benchmark execution through a custom skill-loading harness.
 
-**Skill responsibilities**:
-- `prompt-rendering`: Combines template, specs, and cartridges into final prompt. Standalone and reusable.
-- `project-generation`: Invokes prompt rendering, runs the selected harness, manages retries and session tracking. Requires `--model`, `--level`, `--backend`, `--frontend`.
-- `evaluation-workflow`: Static analysis via `EVAL/comprehensive-evaluator.js` (5-10 sec, no runtime).
-- `e2e-testing`: Runtime validation via `E2E_TESTS/e2e-runner.js` (20-40 min per project).
-- `eval-complete-pipeline`: Full pipeline (static -> E2E -> merge results) with unified metrics.
-- `benchmark-harness`: Orchestrates multi-model/level/stack benchmark runs through skill contracts.
-- `environment-setup`: Local syntax and setup validation for all components.
+**Script responsibilities**:
+- `render-prompt.sh`: Combines template, specs, and cartridges into final prompt. Standalone and reusable.
+- `generate-project.sh`: Calls `render-prompt.sh`, invokes harness, manages retries and session tracking. Requires `--model`, `--level`, `--backend`, `--frontend`.
+- `eval-generated-project.sh`: Static analysis via `EVAL/comprehensive-evaluator.js` (5-10 sec, no runtime).
+- `run-e2e-tests.sh`: Runtime validation via `E2E_TESTS/e2e-runner.js` (20-40 min per project).
+- `eval-complete.sh`: Full pipeline (static → E2E → merge results) with unified metrics.
+- `run-benchmark.sh`: Orchestrates multi-model/level/stack benchmark runs.
+- `test-setup.sh`: Local syntax and setup validation for all components.
 
 **Evaluation coverage**:
 - Static analysis: Spring Boot, Node.js backends; Angular, React frontends
@@ -58,6 +58,6 @@ The root `scripts/*.sh` files are compatibility/reference wrappers for older com
 
 ## Documentation Rules
 
-- Keep documentation aligned with the actual harness, skills, wrappers, and evaluator.
+- Keep documentation aligned with the actual scripts and evaluator.
 - Do not keep session-history notes, scratch updates, or stale evaluation modes in repo-facing docs.
 - Use `TBD` instead of invented benchmark scores or placeholder comparisons.

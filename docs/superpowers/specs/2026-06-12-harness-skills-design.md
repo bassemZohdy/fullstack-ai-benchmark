@@ -8,7 +8,7 @@
 
 ## Problem
 
-Harness knowledge currently lives in `skills/project-generation/EXTENDED.md` as a section, not as standalone navigable skills. There are no per-harness skills for OpenCode or PI, and no support at all for Claude Code, Codex, Kilo Code, or mimo-code. Agents cannot find harness-specific instructions without reading the entire EXTENDED doc.
+Harness knowledge currently lives in `.agents/skills/project-generation/EXTENDED.md` as a section, not as standalone navigable skills. There are no per-harness skills for OpenCode or PI, and no support at all for Claude Code, Codex, Kilo Code, or mimo-code. Agents cannot find harness-specific instructions without reading the entire EXTENDED doc.
 
 ---
 
@@ -21,7 +21,7 @@ Harness knowledge currently lives in `skills/project-generation/EXTENDED.md` as 
 ## Directory Structure
 
 ```
-skills/
+.agents/skills/
   harness-base/
     SKILL.md                     # orientation + routing table + shared invariants
 
@@ -82,7 +82,7 @@ Every harness skill uses the same eight-section structure in the same order. Thi
 
 ### Helper script rule
 
-A helper script is created in `skills/harness-<name>/helpers/` only when the logic is multi-step shell that is harder to follow as prose. The skill references the helper by filename and explains what it does. For scaffolded harnesses, helpers are stubs that print their intended behavior and exit 0.
+A helper script is created in `.agents/skills/harness-<name>/helpers/` only when the logic is multi-step shell that is harder to follow as prose. The skill references the helper by filename and explains what it does. For scaffolded harnesses, helpers are stubs that print their intended behavior and exit 0.
 
 ---
 
@@ -217,7 +217,7 @@ Add a **Harness Skills** section:
 - [ ] `benchmark-support.sh` lists all six harnesses in `BENCHMARK_HARNESSES`
 - [ ] `generate-project.sh` accepts `--harness claude/codex/kilo-code/mimo-code` without crashing (stub exit with clear message)
 - [ ] `project-generation/EXTENDED.md` §1–2 migrated out; §3–7 intact
-- [ ] `skills/INDEX.md` updated with harness skills section
+- [ ] `.agents/skills/INDEX.md` updated with harness skills section
 - [ ] Each helper script in `helpers/` is referenced explicitly from its parent skill
 
 ---

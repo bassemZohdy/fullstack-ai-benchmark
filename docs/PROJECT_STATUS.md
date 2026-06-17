@@ -8,20 +8,20 @@
 
 ### Project Generation
 
-- `project-generation` skill
+- `scripts/generate-project.sh`
 - OpenCode and PI harness support
 - Session tracking and retries
-- Prompt rendering via `prompt-rendering` skill
+- Prompt rendering via `scripts/render-prompt.sh`
 
 ### Static Code Evaluation
 
-- `evaluation-workflow` skill
+- `scripts/eval-generated-project.sh`
 - `EVAL/comprehensive-evaluator.js`
 - Static structure, quality, Docker, Kubernetes, and integration checks
 
 ### E2E Runtime Testing
 
-- `e2e-testing` skill
+- `scripts/run-e2e-tests.sh`
 - `E2E_TESTS/e2e-runner.js`
 - Build validation, Docker startup, health checks, todo API contract checks, frontend checks, cleanup
 
@@ -32,12 +32,12 @@
 
 ### Complete Pipeline Orchestration
 
-- `eval-complete-pipeline` skill
+- `scripts/eval-complete.sh`
 - Runs static evaluation, optional E2E validation, and result merging
 
 ### Benchmark Runner
 
-- `harness/benchmark-harness.js`
+- `scripts/run-benchmark.sh`
 - Generate -> evaluate flow for supported benchmark combinations
 - `--reset` support for clearing the selected workspace and results before reruns
 
@@ -46,20 +46,22 @@
 ### End-to-End Evaluation
 
 - Spring Boot + Angular
+
+### Generation-Only
+
 - Spring Boot + React
 - Node.js + Angular
 - Node.js + React
 
 ## Current Limitations
 
-- Quarkus combinations support static evaluation only (use `--skip-e2e`)
+- Runtime evaluation is not yet implemented for React or Node.js combinations
 - API validation is focused on the generated todo CRUD contract
 - Frontend checks validate accessibility and response behavior, not full browser workflows
 - Database validation and load testing are not implemented
 
 ## Notes
 
-- The benchmark system is operational for all Spring Boot and Node.js combinations with Angular and React
-- Quarkus stacks can be generated and statically evaluated; E2E testing is not yet supported for Quarkus
-- Reset-based reruns are supported through `node harness/benchmark-harness.js run --workflow benchmark --reset`
-- Root `scripts/*.sh` files remain as compatibility/reference wrappers only
+- The benchmark system is operational for the supported end-to-end stack
+- Other stacks can still be generated, but their runtime evaluation support is still pending
+- Reset-based reruns are supported through `scripts/run-benchmark.sh --reset`

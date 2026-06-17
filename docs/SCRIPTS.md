@@ -1,58 +1,17 @@
 # Scripts Reference
 
-The repository root keeps shell wrappers for compatibility and reference only. Canonical execution goes through `harness/benchmark-harness.js` or skill-owned helpers under `skills/<skill>/scripts/`.
+The repository root is shell-only. Do not add root Node.js scripts for benchmark orchestration.
 
-The shared supported matrix and reusable benchmark functions live in `skills/_shared/lib/benchmark.js`. Skill contracts call helpers under `skills/<skill>/scripts/`.
+The shared supported matrix for levels, backends, frontends, harnesses, and providers lives in `scripts/benchmark-support.sh`. The shell scripts source that file so allowed values stay consistent.
 
-## Harness First
-
-New orchestration should be added as loadable skills under `skills/*/skill.json` and executed by `harness/benchmark-harness.js`. Do not add new standalone host orchestration scripts.
-
-Validate loadable skills:
-
-```bash
-node harness/benchmark-harness.js validate
-```
-
-List loadable skills:
-
-```bash
-node harness/benchmark-harness.js list
-```
-
-Run the benchmark directly through the harness:
-
-```bash
-node harness/benchmark-harness.js run --workflow benchmark \
-  --model GLM-5.1Z.AI --level overview \
-  --backend spring-boot --frontend angular \
-  --skip-e2e
-```
-
-Preview the planned skill order without running it:
-
-```bash
-node harness/benchmark-harness.js plan --workflow benchmark \
-  --model GLM-5.1Z.AI --level overview \
-  --backend spring-boot --frontend angular \
-  --skip-e2e
-```
+Repo-scoped Codex skills live in `.agents/skills/` and document how agents should work with these scripts. They are not executed by the benchmark runtime.
 
 ## run-benchmark.sh
 
-Reference wrapper for the harness-loaded benchmark workflow.
+Main orchestrator.
 
 ```bash
 ./scripts/run-benchmark.sh [OPTIONS]
-```
-
-Equivalent wrapper command for previewing the plan:
-
-```bash
-./scripts/run-benchmark.sh \
-  --model GLM-5.1Z.AI --level overview \
-  --backend spring-boot --frontend angular \
-  --skip-e2e --plan
 ```
 
 Options:
@@ -73,76 +32,43 @@ Options:
 | `--reset` | false | no | Clear the selected workspace and results before the run starts |
 | `--timeout <seconds>` | `600` | no | Generation timeout |
 | `--health-timeout <ms>` | `120000` | no | E2E health/readiness timeout |
-| `--quiet` | `false` | no | Suppress detailed harness output |
-| `--plan` | `false` | no | Print the harness plan and exit |
+| `--quiet true|false` | `false` | no | Suppress detailed output |
 
 E2E runtime validation is supported for Spring Boot + Angular, Spring Boot + React, Node.js + Angular, and Node.js + React. Use `quarkus` with `--skip-e2e` for static analysis only.
 
-## Compatibility Wrappers
-
-The scripts below remain callable for focused debugging and backward compatibility. Treat them as references for the underlying command; implementation belongs in the harness or skill-owned Node helpers.
-
 ## generate-project.sh
 
-Reference wrapper for `skills/project-generation/scripts/generate-project.js`.
+Generates one active project in the selected model-level workspace.
 
-Generates one active project in the selected model-level workspace. The skill helper composes the prompt, invokes the selected harness, monitors activity, retries, and writes session metadata.
+The script composes a rendered prompt from `PROMPTS/templates/project-generation.md`, the selected spec level, and cartridges under `PROMPTS/cartridges/`.
+
+It clears generated files in the output directory before generation, preserving only `.opencode-session-id`. OpenCode then generates `README.md` itself and the script writes a structured `.opencode-session` file with attempt history plus token and cost metadata from `opencode export`.
 
 Default generation timeout is `600` seconds.
 
 ## eval-generated-project.sh
 
-Reference wrapper for `skills/evaluation-workflow/scripts/evaluate-static.js`.
+Evaluates a generated project with the self-contained evaluator.
+
+The script calls:
+
+```bash
+node EVAL/comprehensive-evaluator.js
+```
+
+It fails if the evaluator is missing, Node.js is unavailable, the generated project is missing, or the generated output has no recognizable application structure.
 
 ## test-setup.sh
 
-Reference wrapper for `skills/environment-setup/scripts/validate-setup.js`.
+Validates local setup and performs GLM workflow generation with `overview`.
+
+By default, generated setup files are removed after validation. Use `--keep-test-files` only when you need to inspect the temporary output.
 
 ## cleanup-benchmark.sh
 
-Reference wrapper for `skills/cleanup-benchmark/scripts/cleanup.js`.
+Removes generated workspace and result outputs for one benchmark scope.
 
 Use `--scope workspace`, `--scope results`, or `--scope all` when you need to reset a model/backend/frontend/level combination before rerunning a benchmark.
-
-## render-prompt.sh
-
-Reference wrapper for `skills/prompt-rendering/scripts/render-prompt.js`.
-
-```bash
-./scripts/render-prompt.sh \
-  --template PROMPTS/templates/project-generation.md \
-  --spec PROMPTS/overview.md \
-  --backend-cartridge PROMPTS/cartridges/backend/spring-boot.md \
-  --frontend-cartridge PROMPTS/cartridges/frontend/angular.md \
-  --level overview --backend spring-boot --frontend angular
-```
-
-## eval-complete.sh
-
-Reference wrapper for `skills/eval-complete-pipeline/scripts/evaluate-complete.js`.
-
-```bash
-./scripts/eval-complete.sh \
-  --project-dir WORKSPACE/opencode-glm-5.1/overview \
-  --backend spring-boot --frontend angular \
-  --model GLM-5.1Z.AI --level overview \
-  --results-dir RESULTS/opencode-glm-5.1/spring-boot-angular/overview
-```
-
-## run-e2e-tests.sh
-
-Reference wrapper for `skills/e2e-testing/scripts/run-e2e.js`.
-
-```bash
-./scripts/run-e2e-tests.sh \
-  --project-dir WORKSPACE/opencode-glm-5.1/overview \
-  --backend spring-boot --frontend angular \
-  --results-file RESULTS/opencode-glm-5.1/spring-boot-angular/overview/e2e-results.json
-```
-
-## test-regressions.sh
-
-Reference wrapper for `skills/environment-setup/scripts/test-regressions.js`.
 
 ## Output Paths
 

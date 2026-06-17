@@ -19,7 +19,7 @@ Static Analysis (70%)       E2E Testing (30%)        Merged Result
 ### Static Analysis Only
 
 ```bash
-node skills/evaluation-workflow/scripts/evaluate-static.js \
+./scripts/eval-generated-project.sh \
   --project-dir WORKSPACE/opencode-glm-5.1/overview \
   --backend spring-boot --frontend angular
 ```
@@ -27,7 +27,7 @@ node skills/evaluation-workflow/scripts/evaluate-static.js \
 ### Complete Evaluation
 
 ```bash
-node skills/eval-complete-pipeline/scripts/evaluate-complete.js \
+./scripts/eval-complete.sh \
   --project-dir WORKSPACE/opencode-glm-5.1/overview \
   --backend spring-boot --frontend angular \
   --results-dir RESULTS/opencode-glm-5.1/spring-boot-angular/overview
@@ -36,7 +36,7 @@ node skills/eval-complete-pipeline/scripts/evaluate-complete.js \
 ### Full Benchmark Pipeline
 
 ```bash
-node harness/benchmark-harness.js run --workflow benchmark \
+./scripts/run-benchmark.sh \
   --model GLM-5.1Z.AI --level overview \
   --backend spring-boot --frontend angular
 ```
@@ -106,8 +106,8 @@ Contains:
 
 ## Supported Stacks
 
-- End-to-end evaluation: Spring Boot + Angular, Spring Boot + React, Node.js + Angular, Node.js + React
-- Static-only evaluation: Quarkus + Angular, Quarkus + React
+- End-to-end evaluation: Spring Boot + Angular
+- Generation-only: Spring Boot + React, Node.js + Angular, Node.js + React
 
 ## Usage Patterns
 
@@ -134,7 +134,6 @@ jq '.runtime_validation.tests[] | select(.status == "failed") | .name' RESULTS/e
 - `EVAL/comprehensive-evaluator.js`
 - `EVAL/e2e-results-merger.js`
 - `E2E_TESTS/e2e-runner.js`
-- `skills/evaluation-workflow/scripts/evaluate-static.js`
-- `skills/e2e-testing/scripts/run-e2e.js`
-- `skills/eval-complete-pipeline/scripts/evaluate-complete.js`
-- `scripts/*.sh` compatibility/reference wrappers
+- `scripts/eval-generated-project.sh`
+- `scripts/run-e2e-tests.sh`
+- `scripts/eval-complete.sh`
