@@ -111,6 +111,15 @@ resolve_abs_path() {
 WORKSPACE_ABS="$(resolve_abs_path "$WORKSPACE_DIR")"
 RESULTS_ABS="$(resolve_abs_path "$RESULTS_DIR")"
 
+case "$HARNESS" in
+  pi)          LEGACY_SESSION_SUFFIX=".pi-session-id" ;;
+  mimo-code)   LEGACY_SESSION_SUFFIX=".mimo-code-session-id" ;;
+  claude)      LEGACY_SESSION_SUFFIX=".claude-session-id" ;;
+  codex)       LEGACY_SESSION_SUFFIX=".codex-session-id" ;;
+  *)           LEGACY_SESSION_SUFFIX=".opencode-session-id" ;;
+esac
+LEGACY_SESSION_FILE_ABS="${WORKSPACE_ABS}${LEGACY_SESSION_SUFFIX}"
+
 case "$WORKSPACE_ABS" in
   "$PROJECT_ROOT"/WORKSPACE/*) ;;
   *)
@@ -133,7 +142,7 @@ log_info "Scope:     $SCOPE"
 
 delete_path() {
   local path="$1"
-  if [[ -d "$path" ]]; then
+  if [[ -d "$path" || -f "$path" ]]; then
     if [[ "$DRY_RUN" == "true" ]]; then
       log_info "Dry run: would remove $path"
     else
@@ -147,6 +156,7 @@ delete_path() {
 
 if [[ "$SCOPE" == "workspace" || "$SCOPE" == "all" ]]; then
   delete_path "$WORKSPACE_ABS"
+  delete_path "$LEGACY_SESSION_FILE_ABS"
 fi
 
 if [[ "$SCOPE" == "results" || "$SCOPE" == "all" ]]; then

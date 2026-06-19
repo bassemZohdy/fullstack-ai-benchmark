@@ -58,6 +58,12 @@ node EVAL/comprehensive-evaluator.js
 
 It fails if the evaluator is missing, Node.js is unavailable, the generated project is missing, or the generated output has no recognizable application structure.
 
+Static-only output is written to:
+
+```text
+RESULTS/opencode-<model-slug>/<backend>-<frontend>/<level>/static-evaluation.json
+```
+
 ## test-setup.sh
 
 Validates local setup and performs GLM workflow generation with `overview`.
@@ -74,6 +80,7 @@ Use `--scope workspace`, `--scope results`, or `--scope all` when you need to re
 
 ```text
 WORKSPACE/opencode-<model-slug>/<level>/
+RESULTS/opencode-<model-slug>/<backend>-<frontend>/<level>/static-evaluation.json
 RESULTS/opencode-<model-slug>/<backend>-<frontend>/<level>/evaluation-results.json
 ```
 

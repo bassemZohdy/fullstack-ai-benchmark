@@ -134,8 +134,8 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --quiet)
-      QUIET="$2"
-      shift 2
+      QUIET="true"
+      shift
       ;;
     *)
       echo -e "${RED}Unknown option: $1${NC}"
@@ -170,15 +170,6 @@ fi
 TEST_CASE="${MODEL_FILTER}:${LEVEL_FILTER}:${BACKEND_FILTER}:${FRONTEND_FILTER}:${MODEL_FILTER} - ${LEVEL_FILTER} (${BACKEND_FILTER}+${FRONTEND_FILTER})"
 FILTERED_TESTS=("$TEST_CASE")
 TOTAL_TESTS=1
-
-slugify_model() {
-  local model="$1"
-  local model_slug
-  model_slug="$(echo "$model" \
-    | tr '[:upper:]' '[:lower:]' \
-    | sed -E 's|^glm-([0-9.]+)z\.ai$|glm-\1|; s|/|-|g; s|[^a-z0-9._-]+|-|g; s|-+|-|g; s|^-||; s|-$||')"
-  echo "${HARNESS}-${model_slug}"
-}
 
 # Print header
 if [ "$QUIET" != "true" ]; then
@@ -218,9 +209,9 @@ for test_case in "${FILTERED_TESTS[@]}"; do
   fi
 
   # Determine paths. Workspace keeps one active project per model and level.
-  MODEL_SLUG="$(slugify_model "$model")"
-  WORKSPACE_DIR="WORKSPACE/${MODEL_SLUG}/${level}"
-  RESULTS_DIR="RESULTS/${MODEL_SLUG}/${backend}-${frontend}/${level}/"
+  MODEL_SLUG="$(benchmark_slugify_model "$HARNESS" "$model")"
+  WORKSPACE_DIR="$(benchmark_workspace_dir "$HARNESS" "$model" "$level")"
+  RESULTS_DIR="$(benchmark_results_dir "$HARNESS" "$model" "$backend" "$frontend" "$level")"
 
   if [ "$RESET" == "true" ]; then
     if [ "$QUIET" != "true" ]; then
@@ -243,13 +234,13 @@ for test_case in "${FILTERED_TESTS[@]}"; do
   fi
 
   # Harness-specific session file naming
-  SESSION_FILE_SUFFIX=""
   case "$HARNESS" in
-    opencode) SESSION_FILE_SUFFIX=".opencode-session-id" ;;
-    pi) SESSION_FILE_SUFFIX=".pi-session-id" ;;
-    *) SESSION_FILE_SUFFIX=".${HARNESS}-session-id" ;;
+    pi)          SESSION_FILE="$WORKSPACE_DIR/.pi-session-id" ;;
+    mimo-code)   SESSION_FILE="$WORKSPACE_DIR/.mimo-session-id" ;;
+    claude)      SESSION_FILE="$WORKSPACE_DIR/.claude-session-id" ;;
+    codex)       SESSION_FILE="$WORKSPACE_DIR/.codex-session-id" ;;
+    *)           SESSION_FILE="$WORKSPACE_DIR/.opencode-session-id" ;;
   esac
-  SESSION_FILE="${WORKSPACE_DIR}${SESSION_FILE_SUFFIX}"
 
   # Generation phase
   if [ "$SKIP_GEN" != "true" ]; then
@@ -311,7 +302,7 @@ for test_case in "${FILTERED_TESTS[@]}"; do
         --backend "$backend" \
         --frontend "$frontend"; then
         if [ "$QUIET" != "true" ]; then
-          STATIC_SCORE=$(jq -r '.quality.overall_score' "$RESULTS_DIR/evaluation-results.json" 2>/dev/null || echo "N/A")
+          STATIC_SCORE=$(jq -r '.quality.overall_score' "$RESULTS_DIR/static-evaluation.json" 2>/dev/null || echo "N/A")
           echo -e "${GREEN}✅ Static evaluation completed (Score: ${STATIC_SCORE}/100)${NC}"
         fi
         PASSED=$((PASSED + 1))

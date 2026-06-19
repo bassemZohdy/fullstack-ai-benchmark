@@ -1,5 +1,21 @@
 #!/usr/bin/env bash
 
+benchmark_load_repo_env() {
+  local support_dir project_root env_file
+  support_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  project_root="$(dirname "$support_dir")"
+  env_file="$project_root/.env"
+
+  if [[ -f "$env_file" ]]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$env_file"
+    set +a
+  fi
+}
+
+benchmark_load_repo_env
+
 # shellcheck disable=SC2034
 BENCHMARK_LEVELS=("overview" "detailed")
 BENCHMARK_BACKENDS=("node-js" "spring-boot" "quarkus")

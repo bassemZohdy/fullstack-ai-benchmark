@@ -124,7 +124,6 @@ function buildNodeJs(projectDir, timeout) {
   }
 
   const startedAt = Date.now();
-  // Run: npm install
   const result = spawnSync(NPM_COMMAND, ["install"], {
     cwd: backendDir,
     encoding: "utf8",
@@ -133,11 +132,61 @@ function buildNodeJs(projectDir, timeout) {
     shell: USE_SHELL
   });
 
+  if (result.status !== 0) {
+    return {
+      status: "failed",
+      exitCode: result.status,
+      duration: Date.now() - startedAt,
+      error: result.error?.message || result.stderr || "npm install failed"
+    };
+  }
+
+  const pkg = JSON.parse(fs.readFileSync(packagePath, "utf8"));
+  if (pkg.scripts && pkg.scripts.build) {
+    const buildResult = spawnSync(NPM_COMMAND, ["run", "build"], {
+      cwd: backendDir,
+      encoding: "utf8",
+      timeout,
+      stdio: "pipe",
+      shell: USE_SHELL
+    });
+
+    return {
+      status: buildResult.status === 0 ? "passed" : "failed",
+      exitCode: buildResult.status,
+      duration: Date.now() - startedAt,
+      output: buildResult.stdout || buildResult.stderr,
+      error: buildResult.status !== 0
+        ? (buildResult.error?.message || buildResult.stderr || "npm build failed")
+        : null
+    };
+  }
+
+  const mainFile = pkg.main || "index.js";
+  const entryPath = path.join(backendDir, mainFile);
+  if (fs.existsSync(entryPath)) {
+    const syntaxCheck = spawnSync("node", ["--check", entryPath], {
+      cwd: backendDir,
+      encoding: "utf8",
+      timeout: 30000,
+      stdio: "pipe",
+      shell: USE_SHELL
+    });
+
+    return {
+      status: syntaxCheck.status === 0 ? "passed" : "failed",
+      exitCode: syntaxCheck.status,
+      duration: Date.now() - startedAt,
+      error: syntaxCheck.status !== 0
+        ? (syntaxCheck.error?.message || syntaxCheck.stderr || "Syntax check failed")
+        : null
+    };
+  }
+
   return {
-    status: result.status === 0 ? "passed" : "failed",
+    status: "passed",
     exitCode: result.status,
-    duration: Date.now() - startedAt,
-    error: result.status !== 0 ? (result.error?.message || result.stderr || "npm install failed") : null
+    duration: Date.now() - startedAt
   };
 }
 

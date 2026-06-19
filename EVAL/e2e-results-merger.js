@@ -157,6 +157,24 @@ function getTier(score) {
   return "Needs Work";
 }
 
+function capTierForRuntimeStatus(tier, runtimeStatus) {
+  if (!runtimeStatus || runtimeStatus === "passed") {
+    return tier;
+  }
+
+  if (runtimeStatus === "build_failed" || runtimeStatus === "error") {
+    return "Needs Work";
+  }
+
+  const tierOrder = ["Needs Work", "Functional", "Deployable", "Production-Ready"];
+  const cappedIndex = tierOrder.indexOf("Functional");
+  const currentIndex = tierOrder.indexOf(tier);
+  if (currentIndex === -1) {
+    return "Functional";
+  }
+  return tierOrder[Math.min(currentIndex, cappedIndex)];
+}
+
 function mergeEvaluationResults(staticResults, e2eResults) {
   validateStaticResults(staticResults);
   validateE2EResults(e2eResults);
@@ -210,7 +228,10 @@ function mergeEvaluationResults(staticResults, e2eResults) {
       staticOverall * MERGE_WEIGHTS.static + e2eScore * MERGE_WEIGHTS.e2e
     );
     updatedResults.quality.overall_score = newOverall;
-    updatedResults.quality.tier = getTier(newOverall);
+    updatedResults.quality.tier = capTierForRuntimeStatus(
+      getTier(newOverall),
+      e2eResults.status
+    );
     updatedResults.quality.overall_score_before_e2e = staticOverall;
     updatedResults.quality.e2e_impact = newOverall - staticOverall;
   }

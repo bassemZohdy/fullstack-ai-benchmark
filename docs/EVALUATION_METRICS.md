@@ -58,6 +58,10 @@ Final Score = (Static Score * 0.7) + (E2E Score * 0.3)
 
 These tier names are benchmark labels, not deployment guarantees.
 
+When E2E runtime validation fails, the merged tier is capped below deployable
+status. A project that does not become healthy at runtime must not be reported
+as `Deployable` or `Production-Ready`, even if the weighted numeric score is high.
+
 | Score | Tier | Meaning |
 | --- | --- | --- |
 | 90-100 | Production-Ready | Highest benchmark tier |

@@ -5,103 +5,57 @@ description: Execute a full-stack benchmark run. Generate a project from spec, v
 
 # Benchmark Runner
 
-Execute a full-stack benchmark run end-to-end. The agent manages all steps — no external orchestration scripts needed.
+Execute a full-stack benchmark run end-to-end.
+
+## Primary Approach (Script-Driven)
+
+Use the benchmark scripts for all runs. This is the standard and recommended approach:
+
+```bash
+# Full benchmark (generate + evaluate)
+./scripts/run-benchmark.sh \
+  --model GLM-5.1Z.AI --level overview \
+  --backend spring-boot --frontend angular \
+  --harness opencode --provider z-ai
+
+# Static evaluation only
+./scripts/run-benchmark.sh \
+  --model GLM-5.1Z.AI --level overview \
+  --backend spring-boot --frontend angular \
+  --harness opencode --provider z-ai --skip-e2e
+
+# Reset and rerun
+./scripts/run-benchmark.sh \
+  --model GLM-5.1Z.AI --level overview \
+  --backend spring-boot --frontend angular \
+  --harness opencode --provider z-ai --reset
+```
 
 ## Parameters
 
-Determine these from the user's request (or ask if missing):
-
 | Parameter | Values | Default |
 |-----------|--------|---------|
+| **Model** | `GLM-5.1Z.AI`, `kimi/2.6`, `xiaomi/mimo-v2.5` | — |
 | **Spec level** | `overview`, `detailed` | `overview` |
 | **Backend** | `spring-boot`, `node-js`, `quarkus` | `spring-boot` |
 | **Frontend** | `angular`, `react` | `angular` |
-| **Output dir** | path | `./benchmark-output` |
+| **Harness** | `opencode`, `pi`, `mimo-code`, `claude`, `codex`, `kilo-code` | `opencode` |
+| **Provider** | `z-ai`, `openrouter`, `mimo` | `z-ai` |
 
-## Workflow
+## Alternative Approach (Agent-Driven)
 
-### Step 1: Load Specification
+For harnesses that don't support CLI invocation, the agent can generate files directly:
 
-Read the spec and cartridges:
+1. Read `PROMPTS/{level}.md`, `PROMPTS/cartridges/backend/{backend}.md`, `PROMPTS/cartridges/frontend/{frontend}.md`
+2. Generate the full-stack project following the spec and cartridges
+3. Run `EVAL/comprehensive-evaluator.js` for static scoring
+4. Report results
 
-1. Read `PROMPTS/{level}.md` — the specification
-2. Read `PROMPTS/cartridges/backend/{backend}.md` — backend cartridge
-3. Read `PROMPTS/cartridges/frontend/{frontend}.md` — frontend cartridge
-
-### Step 2: Generate Project
-
-Create the full-stack project in the output directory:
-
-1. Create `{output-dir}/backend/` and `{output-dir}/frontend/` directories
-2. Generate backend files per the backend cartridge and spec
-3. Generate frontend files per the frontend cartridge and spec
-4. Generate Docker support (`Dockerfile`, `docker-compose.yml`)
-5. Generate Kubernetes manifests (`k8s/`)
-6. Generate `.env.example` with required environment variables
-7. Generate `README.md` with local run instructions
-8. Generate tests for both backend and frontend
-
-**Build strategy:**
-- Write a minimal, compileable scaffold first
-- Create core backend + frontend + Docker files early
-- Prefer the simplest working implementation
-- Prioritize compileability over features
-
-### Step 3: Validate Output
-
-Self-check the generated project before reporting:
-
-1. **Structure check**: Verify `backend/`, `frontend/`, `Dockerfile`, `docker-compose.yml`, `k8s/`, `.env.example`, `README.md` all exist
-2. **Backend check**: Verify build file exists (`pom.xml`/`build.gradle` for Spring Boot, `package.json` for Node.js, `pom.xml`/`build.gradle` for Quarkus)
-3. **Frontend check**: Verify `package.json` and framework config exist
-4. **Docker check**: Verify `Dockerfile` references the correct build tool and `docker-compose.yml` defines both services
-5. **Test check**: Verify test files exist in both backend and frontend
-
-If any check fails, fix the issue before proceeding.
-
-### Step 4: Run Static Evaluation
-
-Read `EVAL/comprehensive-evaluator.js` and run it against the generated project:
-
-```bash
-node EVAL/comprehensive-evaluator.js \
-  --project-dir {output-dir} \
-  --backend {backend} \
-  --frontend {frontend}
-```
-
-Or manually evaluate using the criteria in `references/evaluation-criteria.md`.
-
-### Step 5: Report Results
-
-Output a summary:
-
-```
-## Benchmark Results
-
-- **Spec level**: {level}
-- **Stack**: {backend} + {frontend}
-- **Output**: {output-dir}
-
-### Structure Validation
-- [ ] Backend directory
-- [ ] Frontend directory
-- [ ] Docker support
-- [ ] Kubernetes manifests
-- [ ] Tests
-- [ ] README
-
-### Static Evaluation Score
-- Overall: {score}/100
-- Tier: {tier}
-
-### Files Generated
-{file count and list}
-```
+This approach should only be used when scripts cannot be used.
 
 ## Evaluation Criteria
 
-See `references/evaluation-criteria.md` for detailed scoring rubric.
+See `references/evaluation-criteria.md` for the scoring rubric used by `EVAL/comprehensive-evaluator.js`.
 
 ## Available Cartridges
 

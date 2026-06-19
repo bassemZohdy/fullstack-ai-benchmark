@@ -1,0 +1,4 @@
+interface:
+  display_name: "Evaluation Audit"
+  short_description: "Audit benchmark scores against source and cartridges"
+  default_prompt: "Use $evaluation-audit to verify whether benchmark scores and failures match the generated source, result JSON, and the relevant cartridges."

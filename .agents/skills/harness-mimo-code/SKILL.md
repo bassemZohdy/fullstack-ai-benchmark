@@ -1,6 +1,6 @@
 ---
 name: harness-mimo-code
-description: Use mimo-code as the generation harness. Binary is `mimo` (npm global package, v0.1.0). Interface mirrors OpenCode — uses --dir, --dangerously-skip-permissions, --file, -m, -s flags. Default model: mimo/mimo-auto.
+description: "Use mimo-code as the generation harness. Binary is `mimo` (npm global package, v0.1.0). Interface mirrors OpenCode and uses --dir, --dangerously-skip-permissions, --file, -m, and -s flags. Default model: mimo/mimo-auto."
 ---
 
 # mimo-code Harness
@@ -9,13 +9,13 @@ description: Use mimo-code as the generation harness. Binary is `mimo` (npm glob
 
 **Implemented.** `--harness mimo-code` is fully supported in `generate-project.sh`.
 
-Binary: `mimo` (installed at `/c/Users/Bassem/AppData/Roaming/npm/mimo`, v0.1.0)
+Binary: `mimo` (install via npm; override with `BENCHMARK_MIMO_CODE_CLI`)
 No API key required — runs locally.
 
 ## 1. Prerequisites & Install
 
 ```bash
-npm install -g mimocode   # or whatever the package name is
+npm install -g mimocode
 mimo --version            # verify: 0.1.0
 ```
 

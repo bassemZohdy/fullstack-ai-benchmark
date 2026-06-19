@@ -36,18 +36,33 @@ function resolveFrontendRoot(projectDir) {
 
   const hasRootPackage = fs.existsSync(path.join(projectDir, "package.json"));
   const hasRootAngular = fs.existsSync(path.join(projectDir, "angular.json"));
-  const hasRootApp = fs.existsSync(path.join(projectDir, "src", "app"));
-  const hasRootBootstrap = fs.existsSync(path.join(projectDir, "src", "main.ts"));
 
-  if ((hasRootPackage || hasRootAngular) && (hasRootApp || hasRootBootstrap)) {
-    return projectDir;
+  if (hasRootPackage || hasRootAngular) {
+    const hasRootApp = fs.existsSync(path.join(projectDir, "src", "app"));
+    const hasRootBootstrap = fs.existsSync(path.join(projectDir, "src", "main.ts"));
+    if (hasRootApp || hasRootBootstrap) {
+      return projectDir;
+    }
+
+    const hasReactApp = fs.existsSync(path.join(projectDir, "src", "App.tsx")) ||
+                        fs.existsSync(path.join(projectDir, "src", "App.jsx"));
+    if (hasReactApp) {
+      return projectDir;
+    }
+
+    try {
+      const pkg = JSON.parse(fs.readFileSync(path.join(projectDir, "package.json"), "utf8"));
+      if (pkg.dependencies && (pkg.dependencies.react || pkg.dependencies["@angular/core"])) {
+        return projectDir;
+      }
+    } catch {}
   }
 
   return null;
 }
 
 function describeSupportedLayout() {
-  return "Expected backend/ and frontend/ directories, or a root-level Spring Boot/Angular layout.";
+  return "Expected backend/ and frontend/ directories, or a root-level Spring Boot/Angular/React layout.";
 }
 
 module.exports = {

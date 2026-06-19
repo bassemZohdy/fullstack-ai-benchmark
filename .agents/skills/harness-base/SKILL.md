@@ -18,7 +18,7 @@ A harness is the AI coding tool that generates a full-stack project from a rende
 | Claude Code | `claude` | TBD | TBD | Scaffolded | `harness-claude` |
 | Codex | `codex` | TBD | TBD | Scaffolded | `harness-codex` |
 | Kilo Code | `kilo-code` | TBD | TBD | Scaffolded | `harness-kilo-code` |
-| mimo-code | `mimo-code` | TBD | TBD | Scaffolded | `harness-mimo-code` |
+| mimo-code | `mimo-code` | TBD | TBD | Ready | `harness-mimo-code` |
 
 **Scaffolded** — harness name is accepted by `generate-project.sh` validation but `build_gen_cmd` exits with "not yet implemented" until the CLI integration is completed.
 
@@ -46,5 +46,5 @@ These apply to every harness without exception:
 
 Switch to the per-harness skill for installation, exact CLI flags, provider/model mapping, and examples:
 
-- **Ready to use**: `harness-opencode`, `harness-pi`
-- **Scaffolded** (gaps marked `[TODO]`): `harness-claude`, `harness-codex`, `harness-kilo-code`, `harness-mimo-code`
+- **Ready to use**: `harness-opencode`, `harness-pi`, `harness-mimo-code`
+- **Scaffolded** (gaps marked `[TODO]`): `harness-claude`, `harness-codex`, `harness-kilo-code`

@@ -169,7 +169,7 @@ map_harness_model() {
 # Defaults
 HARNESS="opencode"
 PROVIDER="z-ai"
-TIMEOUT="600"
+TIMEOUT="900"
 AUTO_APPROVE="true"
 RETRIES="3"
 SESSION_ID=""
@@ -272,7 +272,7 @@ if [ -z "$MODEL" ] || [ -z "$LEVEL" ] || [ -z "$BACKEND" ] || [ -z "$FRONTEND" ]
   echo "Optional:"
   echo "  --harness <harness>     (default: opencode)"
   echo "  --provider <provider>   (default: z-ai)"
-  echo "  --timeout <seconds>     (default: 300, min: 240 for full-stack)"
+  echo "  --timeout <seconds>     (default: 900, min: 240 for full-stack)"
   echo "  --spec-file <path>      (custom spec file)"
   echo "  --auto-approve true|false (default: true)"
   echo "  --retries <count>       (default: 3)"
@@ -291,9 +291,7 @@ fi
 
 # Auto-generate output directory if not provided
 if [ -z "$OUTPUT_DIR" ]; then
-  # Create model slug: GLM-5.1Z.AI -> glm-5.1, kimi/2.6 -> kimi-2.6
-  MODEL_SLUG=$(echo "$MODEL" | tr '[:upper:]' '[:lower:]' | sed 's/z\.ai$//' | sed 's/\.ai$//' | sed 's/[^a-z0-9.-]/-/g')
-  OUTPUT_DIR="WORKSPACE/${HARNESS}-${MODEL_SLUG}/${LEVEL}"
+  OUTPUT_DIR="$(benchmark_workspace_dir "$HARNESS" "$MODEL" "$LEVEL")"
 fi
 
 mkdir -p "$OUTPUT_DIR"
@@ -818,13 +816,22 @@ monitor_process_with_activity() {
   local elapsed_total=0
   local elapsed_since_activity=0
   local last_file_count=0
+  local last_mod_time=0
 
   while kill -0 "$cmd_pid" 2>/dev/null; do
     local current_file_count
     current_file_count=$(find "$output_dir" -type f 2>/dev/null | wc -l)
 
-    if [ "$current_file_count" -gt "$last_file_count" ]; then
+    local current_mod_time=0
+    local newest_file
+    newest_file=$(find "$output_dir" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1)
+    if [ -n "$newest_file" ]; then
+      current_mod_time=${newest_file%%.*}
+    fi
+
+    if [ "$current_file_count" -gt "$last_file_count" ] || [ "$current_mod_time" -gt "$last_mod_time" ]; then
       last_file_count="$current_file_count"
+      last_mod_time="$current_mod_time"
       elapsed_since_activity=0
       if [ "$elapsed_total" -gt 10 ]; then
         echo -e "${BLUE}  → Activity detected (${current_file_count} files)${NC}"
@@ -869,10 +876,17 @@ run_generation_attempt() {
 
   ACTIVE_GEN_PID=$!
 
+  local inactivity_threshold=120
+  case "$HARNESS" in
+    pi) inactivity_threshold=300 ;;
+    codex|claude) inactivity_threshold=180 ;;
+  esac
+
   # Monitor with activity detection:
-  # - inactivity_threshold: 90s = if no files created for 90s, assume stuck (allows finalization)
-  # - max_timeout: TIMEOUT variable (default 120s) = hard limit even with activity
-  monitor_process_with_activity "$ACTIVE_GEN_PID" "$OUTPUT_DIR" "$TIMEOUT" 90
+  # - inactivity_threshold: harness-specific quiet-period budget before assuming stuck
+  # - max_timeout: TIMEOUT variable (default 900s) = hard limit even with activity
+  # - detects both new files and file modifications
+  monitor_process_with_activity "$ACTIVE_GEN_PID" "$OUTPUT_DIR" "$TIMEOUT" "$inactivity_threshold"
 
   local exit_code=$?
   ACTIVE_GEN_PID=""

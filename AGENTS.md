@@ -5,17 +5,22 @@
 This repository is a shell-orchestrated benchmark for generated full-stack projects. The root intentionally has no `package.json`.
 
 - `scripts/`: benchmark orchestration scripts
+  - `benchmark-support.sh`: Shared constants and utility functions sourced by all scripts
   - `render-prompt.sh`: Standalone prompt templating (reads template, specs, cartridges → final prompt)
   - `generate-project.sh`: Project generation with harness orchestration (calls render-prompt.sh)
   - `run-benchmark.sh`: Multi-model/level benchmark runner
   - `eval-generated-project.sh`: Project evaluation orchestrator
+  - `eval-complete.sh`: Complete evaluation pipeline (static + E2E + merge)
+  - `run-e2e-tests.sh`: E2E runtime testing wrapper
+  - `cleanup-benchmark.sh`: Safely remove generated workspace and result artifacts
   - `test-setup.sh`: Local syntax and integration checks
+  - `test-regressions.sh`: Comprehensive regression smoke tests
 - `PROMPTS/`: specification levels (`overview.md`, `detailed.md`), prompt templates, and stack cartridges
 - `.agents/skills/`: repo-scoped Codex skills that document benchmark workflows for agents; these are not benchmark runtime code
 - `EVAL/`: self-contained evaluator; entry point is `EVAL/comprehensive-evaluator.js`
 - `E2E_TESTS/`: reserved compatibility area for future expanded E2E suites
-- `WORKSPACE/opencode-<model-slug>/<level>/`: one active generated project per model and spec level (includes `.opencode-session-id` and `.opencode-session` for session tracking)
-- `RESULTS/opencode-<model-slug>/<backend>-<frontend>/<level>/`: permanent evaluation outputs
+- `WORKSPACE/<harness>-<model-slug>/<level>/`: one active generated project per model and spec level
+- `RESULTS/<harness>-<model-slug>/<backend>-<frontend>/<level>/`: permanent evaluation outputs
 - `docs/`: architecture, scripts, methodology, and result format documentation
 
 ## Build, Test, and Development Commands
@@ -35,15 +40,15 @@ Renders final prompt without invoking harness. Useful for testing prompt logic.
 ```bash
 ./scripts/generate-project.sh \
   --model GLM-5.1Z.AI --level overview \
-  --backend spring-boot --frontend angular --provider z-ai
+  --backend spring-boot --frontend angular --provider z-ai --harness opencode
 ```
-Generates one project. Uses `render-prompt.sh` internally, invokes OpenCode harness.
+Generates one project. Uses `render-prompt.sh` internally, invokes the selected harness.
 
 **Run benchmark suite**:
 ```bash
 ./scripts/run-benchmark.sh \
   --model GLM-5.1Z.AI --level overview \
-  --backend spring-boot --frontend angular --provider z-ai
+  --backend spring-boot --frontend angular --provider z-ai --harness opencode
 ```
 Full benchmark with all selectors (model, level, backend, frontend).
 
@@ -68,9 +73,9 @@ Runs static analysis, E2E tests, merges results into unified metrics (20-40 min 
 **Static evaluation only** (code structure and quality):
 ```bash
 ./scripts/eval-generated-project.sh \
-  --project-dir WORKSPACE/opencode-glm-5.1/overview \
-  --backend spring-boot --frontend angular \
-  --results-file RESULTS/opencode-glm-5.1/spring-boot-angular/overview/static-evaluation.json
+  --generated-dir WORKSPACE/opencode-glm-5.1/overview \
+  --results-dir RESULTS/opencode-glm-5.1/spring-boot-angular/overview \
+  --backend spring-boot --frontend angular
 ```
 Checks code organization, Docker config, build tools (5-10 seconds, no runtime testing).
 
@@ -89,9 +94,15 @@ bash -n scripts/*.sh && node --check EVAL/comprehensive-evaluator.js E2E_TESTS/e
 ```
 Validates script and evaluator syntax.
 
+**Regression tests**:
+```bash
+./scripts/test-regressions.sh
+```
+Runs 12 regression smoke tests covering script contracts, evaluator logic, and cleanup safety.
+
 ## Coding Style & Naming Conventions
 
-Keep root orchestration in Bash. Use quoted variables, arrays for commands, and fail-fast behavior. Do not use root Node.js scripts for benchmark orchestration. Keep agent workflow guidance in `.agents/skills/`, and do not add `skill.json` runtime contracts or a custom skill-loading harness. Model directories must use normalized OpenCode-prefixed slugs, for example `GLM-5.1Z.AI` -> `opencode-glm-5.1` and `kimi/2.6` -> `opencode-kimi-2.6`.
+Keep root orchestration in Bash. Use quoted variables, arrays for commands, and fail-fast behavior. Do not use root Node.js scripts for benchmark orchestration. Keep agent workflow guidance in `.agents/skills/`, and do not add `skill.json` runtime contracts or a custom skill-loading harness. Model directories must use normalized harness-prefixed slugs, for example `GLM-5.1Z.AI` via opencode -> `opencode-glm-5.1`, `kimi/2.7` via pi -> `pi-kimi-2.7`, and `mimo/mimo-v2.5-pro` via mimo-code -> `mimo-code-mimo-mimo-v2-5-pro`.
 
 Use concise Markdown in docs. Avoid invented benchmark scores; use `TBD` or `null` until real results exist.
 
@@ -118,7 +129,7 @@ Use `overview` and `detailed` as the only built-in spec levels. Keep all test fi
 
 ## Commit & Pull Request Guidelines
 
-This checkout has no Git history available, so no repository-specific commit convention can be inferred. Use clear imperative commit messages, for example `Fix OpenCode run invocation`. Pull requests should include scope, changed scripts/docs, commands run, and any generated result paths. Link related issues when available.
+This checkout has 20 commits on the main branch. Use clear imperative commit messages, for example `Fix OpenCode run invocation`. Pull requests should include scope, changed scripts/docs, commands run, and any generated result paths. Link related issues when available.
 
 ## Security & Configuration Tips
 

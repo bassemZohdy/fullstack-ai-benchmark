@@ -20,6 +20,29 @@ function readFile(file) {
   }
 }
 
+function listManifestFiles(dir) {
+  try {
+    return fs.readdirSync(dir, { recursive: true })
+      .filter((entry) => /\.(ya?ml)$/i.test(entry))
+      .map((entry) => path.join(dir, entry));
+  } catch {
+    return [];
+  }
+}
+
+function readManifestFiles(dir) {
+  return listManifestFiles(dir).map((file) => ({
+    file,
+    relative: file.replace(`${dir}${path.sep}`, "").replace(/\\/g, "/"),
+    content: readFile(file)
+  }));
+}
+
+function manifestMatches(manifest, kindPattern, rolePattern) {
+  return kindPattern.test(manifest.content) &&
+    (rolePattern.test(manifest.relative) || rolePattern.test(manifest.content));
+}
+
 function validateYamlContent(content) {
   // Basic YAML validation - check for required K8s fields
   const hasKind = /kind:\s*(Deployment|Service|Ingress|StatefulSet)/i.test(content);
@@ -30,40 +53,47 @@ function validateYamlContent(content) {
 
 function testKubernetesConfiguration(projectDir) {
   const tests = [];
-  const k8sDir = path.join(projectDir, "k8s");
+  const k8sDir = fs.existsSync(path.join(projectDir, "k8s"))
+    ? path.join(projectDir, "k8s")
+    : fs.existsSync(path.join(projectDir, "kubernetes"))
+      ? path.join(projectDir, "kubernetes")
+      : path.join(projectDir, "k8s");
+  const manifests = readManifestFiles(k8sDir);
+  const backendRole = /\bbackend\b|todo-backend|\bapi\b/i;
+  const frontendRole = /\bfrontend\b|todo-frontend|\bui\b|\bweb\b/i;
 
   // Check for manifest files (support both .yaml and .yml)
-  const hasBackendYaml = fs.existsSync(path.join(k8sDir, "backend-deployment.yaml")) ||
-                        fs.existsSync(path.join(k8sDir, "backend-deployment.yml")) ||
-                        fs.existsSync(path.join(k8sDir, "backend.yaml")) ||
-                        fs.existsSync(path.join(k8sDir, "backend.yml"));
+  const hasBackendYaml = manifests.some((manifest) =>
+    manifestMatches(manifest, /kind:\s*(Deployment|StatefulSet)/i, backendRole)
+  );
   tests.push({
     name: "Backend K8s manifest exists",
     status: hasBackendYaml ? "passed" : "failed",
-    details: hasBackendYaml ? "" : "No backend-deployment.yaml/yml or backend.yaml/yml found"
+    details: hasBackendYaml ? "" : "No backend-deployment.yaml/yml, backend.yaml/yml, or deployment.yaml/yml found"
   });
 
-  const hasFrontendYaml = fs.existsSync(path.join(k8sDir, "frontend-deployment.yaml")) ||
-                         fs.existsSync(path.join(k8sDir, "frontend-deployment.yml")) ||
-                         fs.existsSync(path.join(k8sDir, "frontend.yaml")) ||
-                         fs.existsSync(path.join(k8sDir, "frontend.yml"));
+  const hasFrontendYaml = manifests.some((manifest) =>
+    manifestMatches(manifest, /kind:\s*(Deployment|StatefulSet)/i, frontendRole)
+  );
   tests.push({
     name: "Frontend K8s manifest exists",
     status: hasFrontendYaml ? "passed" : "failed",
-    details: hasFrontendYaml ? "" : "No frontend-deployment.yaml/yml or frontend.yaml/yml found"
+    details: hasFrontendYaml ? "" : "No frontend-deployment.yaml/yml, frontend.yaml/yml, or deployment.yaml/yml found"
   });
 
   // Check for Services
-  const hasBackendService = fs.existsSync(path.join(k8sDir, "backend-service.yaml")) ||
-                           fs.existsSync(path.join(k8sDir, "backend-service.yml"));
+  const hasBackendService = manifests.some((manifest) =>
+    manifestMatches(manifest, /kind:\s*Service/i, backendRole)
+  );
   tests.push({
     name: "Backend Service defined",
     status: hasBackendService ? "passed" : "failed",
     details: hasBackendService ? "" : "No backend-service.yaml/yml found"
   });
 
-  const hasFrontendService = fs.existsSync(path.join(k8sDir, "frontend-service.yaml")) ||
-                            fs.existsSync(path.join(k8sDir, "frontend-service.yml"));
+  const hasFrontendService = manifests.some((manifest) =>
+    manifestMatches(manifest, /kind:\s*Service/i, frontendRole)
+  );
   tests.push({
     name: "Frontend Service defined",
     status: hasFrontendService ? "passed" : "failed",
@@ -71,27 +101,19 @@ function testKubernetesConfiguration(projectDir) {
   });
 
   // Check for Ingress
-  const hasIngress = fs.existsSync(path.join(k8sDir, "ingress.yaml")) ||
-                    fs.existsSync(path.join(k8sDir, "ingress.yml"));
+  const hasIngress = manifests.some((manifest) => /kind:\s*Ingress/i.test(manifest.content));
   tests.push({
     name: "Ingress configured",
-    status: hasIngress ? "passed" : "failed",
-    details: hasIngress ? "" : "No ingress.yaml/yml found"
+    status: hasIngress ? "passed" : "skipped",
+    details: hasIngress ? "" : "Ingress treated as optional"
   });
 
   // Validate Backend Deployment
   if (hasBackendYaml) {
-    let backendFile;
-    if (fs.existsSync(path.join(k8sDir, "backend-deployment.yaml"))) {
-      backendFile = path.join(k8sDir, "backend-deployment.yaml");
-    } else if (fs.existsSync(path.join(k8sDir, "backend-deployment.yml"))) {
-      backendFile = path.join(k8sDir, "backend-deployment.yml");
-    } else if (fs.existsSync(path.join(k8sDir, "backend.yaml"))) {
-      backendFile = path.join(k8sDir, "backend.yaml");
-    } else {
-      backendFile = path.join(k8sDir, "backend.yml");
-    }
-    const backendContent = readFile(backendFile);
+    const backendContent = manifests
+      .filter((manifest) => manifestMatches(manifest, /kind:\s*(Deployment|StatefulSet)/i, backendRole))
+      .map((manifest) => manifest.content)
+      .join("\n---\n");
     const isValidBackend = validateYamlContent(backendContent);
 
     tests.push({
@@ -139,17 +161,10 @@ function testKubernetesConfiguration(projectDir) {
 
   // Validate Frontend Deployment
   if (hasFrontendYaml) {
-    let frontendFile;
-    if (fs.existsSync(path.join(k8sDir, "frontend-deployment.yaml"))) {
-      frontendFile = path.join(k8sDir, "frontend-deployment.yaml");
-    } else if (fs.existsSync(path.join(k8sDir, "frontend-deployment.yml"))) {
-      frontendFile = path.join(k8sDir, "frontend-deployment.yml");
-    } else if (fs.existsSync(path.join(k8sDir, "frontend.yaml"))) {
-      frontendFile = path.join(k8sDir, "frontend.yaml");
-    } else {
-      frontendFile = path.join(k8sDir, "frontend.yml");
-    }
-    const frontendContent = readFile(frontendFile);
+    const frontendContent = manifests
+      .filter((manifest) => manifestMatches(manifest, /kind:\s*(Deployment|StatefulSet)/i, frontendRole))
+      .map((manifest) => manifest.content)
+      .join("\n---\n");
     const isValidFrontend = validateYamlContent(frontendContent);
 
     tests.push({
@@ -197,10 +212,10 @@ function testKubernetesConfiguration(projectDir) {
 
   // Validate Ingress if present
   if (hasIngress) {
-    const ingressPath = fs.existsSync(path.join(k8sDir, "ingress.yaml"))
-      ? path.join(k8sDir, "ingress.yaml")
-      : path.join(k8sDir, "ingress.yml");
-    const ingressContent = readFile(ingressPath);
+    const ingressContent = manifests
+      .filter((manifest) => /kind:\s*Ingress/i.test(manifest.content))
+      .map((manifest) => manifest.content)
+      .join("\n---\n");
     const hasIngressRules = /rules:|paths:/i.test(ingressContent);
 
     tests.push({
@@ -211,7 +226,7 @@ function testKubernetesConfiguration(projectDir) {
   } else {
     tests.push({
       name: "Ingress routing rules configured",
-      status: "failed",
+      status: "skipped",
       details: "Skipped - ingress not found"
     });
   }

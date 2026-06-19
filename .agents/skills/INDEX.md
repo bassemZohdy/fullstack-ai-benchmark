@@ -15,6 +15,7 @@ They are agent guidance, not benchmark runtime code. Benchmark execution remains
 | `project-generation` | Generate projects with session management, retries, and timeout guidance |
 | `cleanup-benchmark` | Safely remove generated workspace and result artifacts |
 | `evaluation-workflow` | Run and interpret static evaluation |
+| `evaluation-audit` | Audit suspicious scores against source, cartridges, and result JSON |
 | `eval-complete-pipeline` | Run static + E2E + merge evaluation workflows |
 | `e2e-testing` | Validate builds, Docker startup, API checks, and frontend checks |
 | `docs-maintenance` | Keep README and docs aligned with actual benchmark behavior |
@@ -32,7 +33,7 @@ Use these when selecting or configuring generation tools. Start with `harness-ba
 | `harness-claude` | Claude Code CLI | `claude` | Scaffolded |
 | `harness-codex` | OpenAI Codex CLI | `codex` | Scaffolded |
 | `harness-kilo-code` | Kilo Code | `kilo-code` | Scaffolded |
-| `harness-mimo-code` | mimo-code | `mimo-code` | Scaffolded |
+| `harness-mimo-code` | mimo-code | `mimo-code` | Ready |
 
 ## Runtime Boundary
 

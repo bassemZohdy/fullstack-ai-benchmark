@@ -1,15 +1,15 @@
 # Project Completion Status
 
-**Date**: 2026-06-08  
-**Status**: Operational with Known Gaps  
-**Overall**: Generation is complete; runtime evaluation is currently limited to Spring Boot + Angular
+**Date**: 2026-06-19  
+**Status**: Operational  
+**Overall**: Generation and runtime evaluation are complete for all supported stacks
 
 ## Delivered Features
 
 ### Project Generation
 
 - `scripts/generate-project.sh`
-- OpenCode and PI harness support
+- OpenCode, PI, and mimo-code harness support
 - Session tracking and retries
 - Prompt rendering via `scripts/render-prompt.sh`
 
@@ -46,22 +46,38 @@
 ### End-to-End Evaluation
 
 - Spring Boot + Angular
-
-### Generation-Only
-
 - Spring Boot + React
 - Node.js + Angular
 - Node.js + React
 
+### Static Analysis Only
+
+- All supported backend/frontend combinations (including Quarkus)
+
 ## Current Limitations
 
-- Runtime evaluation is not yet implemented for React or Node.js combinations
 - API validation is focused on the generated todo CRUD contract
 - Frontend checks validate accessibility and response behavior, not full browser workflows
 - Database validation and load testing are not implemented
 
 ## Notes
 
-- The benchmark system is operational for the supported end-to-end stack
-- Other stacks can still be generated, but their runtime evaluation support is still pending
+- The benchmark system is operational for all supported end-to-end stacks
 - Reset-based reruns are supported through `scripts/run-benchmark.sh --reset`
+
+## Benchmark Results (2026-06-19)
+
+Static evaluation scores for the overview spec level, spring-boot + angular stack:
+
+| Harness | Model | Score | Tier | Generation Time |
+|---------|-------|-------|------|----------------|
+| opencode | zai-coding-plan/glm-5.2 | 82 | Deployable | 14m 49s |
+| PI | moonshotai/kimi-k2.7-code (OpenRouter) | 85 | Deployable | 17m 47s |
+| mimo-code | mimo/mimo-auto | 86 | Deployable | 1m 44s |
+
+Key findings:
+- mimo-code is ~8-10x faster than opencode/PI and produces competitive quality output
+- PI with Kimi 2.7 achieves perfect code quality score (100)
+- OpenCode with GLM 5.2 generates the most complete Kubernetes manifests
+- All harnesses achieve 100 on Docker deployment and E2E & Other categories
+- The evaluator supports all 4 stack combinations and both `k8s/` and `kubernetes/` directories

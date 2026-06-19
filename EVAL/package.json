@@ -4,10 +4,7 @@
   "description": "Generic evaluation framework for benchmarking generated projects",
   "main": "comprehensive-evaluator.js",
   "scripts": {
-    "evaluate": "node evaluate.js",
-    "evaluate:quality": "node evaluate.js --metrics quality",
-    "evaluate:performance": "node evaluate.js --metrics performance",
-    "evaluate:integration": "node evaluate.js --metrics integration"
+    "evaluate": "node comprehensive-evaluator.js"
   },
   "keywords": [
     "benchmark",

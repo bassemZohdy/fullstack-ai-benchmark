@@ -433,6 +433,260 @@ EOF
   pass "e2e-results-merger.js keeps static and merged metrics separate"
 }
 
+run_e2e_merger_tier_cap_smoke() {
+  local static_file="$TMP_DIR/static-tier-cap.json"
+  local e2e_file="$TMP_DIR/e2e-tier-cap.json"
+  local output_file="$TMP_DIR/merged-tier-cap.json"
+
+  cat > "$static_file" <<'EOF'
+{
+  "metadata": {
+    "evaluation_version": "4.0",
+    "evaluation_type": "comprehensive"
+  },
+  "quality": {
+    "overall_score": 92,
+    "tier": "Production-Ready",
+    "pass_rate": 0.9,
+    "test_count": 10,
+    "passed": 9,
+    "failed": 1,
+    "scores": {
+      "code_quality": 92
+    }
+  }
+}
+EOF
+
+  cat > "$e2e_file" <<'EOF'
+{
+  "status": "health_failed",
+  "startedAt": "2026-06-13T00:00:00Z",
+  "finishedAt": "2026-06-13T00:01:00Z",
+  "phases": {
+    "build": {
+      "backend": { "status": "passed" },
+      "frontend": { "status": "passed" }
+    },
+    "docker": { "status": "started" },
+    "health": { "ready": false, "error": "timed out" },
+    "cleanup": { "status": "stopped" }
+  }
+}
+EOF
+
+  if ! node "$ROOT_DIR/EVAL/e2e-results-merger.js" --static-results "$static_file" --e2e-results "$e2e_file" --output "$output_file" >/dev/null; then
+    fail "e2e-results-merger.js did not merge the tier-cap sample"
+  fi
+
+  if ! node -e "const r=require(process.argv[1]); if (r.quality.tier !== 'Functional') process.exit(1);" "$output_file"; then
+    fail "merged results did not cap the tier after runtime validation failure"
+  fi
+
+  pass "e2e-results-merger.js caps the tier when runtime validation fails"
+}
+
+run_embedded_k8s_service_detection_smoke() {
+  local project_dir="$TMP_DIR/k8s-embedded-service"
+  local k8s_dir="$project_dir/k8s"
+  mkdir -p "$k8s_dir"
+
+  cat > "$k8s_dir/backend.yaml" <<'EOF'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-backend
+spec:
+  template:
+    spec:
+      containers:
+        - name: todo-backend
+          image: todo-backend:latest
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-backend
+spec:
+  selector:
+    app: todo-backend
+  ports:
+    - port: 8080
+      targetPort: 8080
+EOF
+
+  cat > "$k8s_dir/frontend.yaml" <<'EOF'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-frontend
+spec:
+  template:
+    spec:
+      containers:
+        - name: todo-frontend
+          image: todo-frontend:latest
+          ports:
+            - containerPort: 80
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-frontend
+spec:
+  selector:
+    app: todo-frontend
+  ports:
+    - port: 80
+      targetPort: 80
+EOF
+
+  if ! node - <<'NODE' "$ROOT_DIR" "$project_dir"
+const root = process.argv[2];
+const projectDir = process.argv[3];
+const k8s = require(`${root}/EVAL/phases/kubernetes-config.js`);
+const tests = k8s.testKubernetesConfiguration(projectDir);
+  const required = [
+  "Backend Service defined",
+  "Frontend Service defined",
+  "Backend health checks configured",
+  "Frontend health checks configured"
+];
+for (const name of required) {
+  const test = tests.find((entry) => entry.name === name);
+  if (!test || test.status !== "passed") {
+    process.exit(1);
+  }
+}
+NODE
+  then
+    fail "kubernetes-config.js did not detect embedded Service/Probe manifests"
+  fi
+
+  if ! node - <<'NODE' "$ROOT_DIR" "$project_dir"
+const root = process.argv[2];
+const projectDir = process.argv[3];
+const k8s = require(`${root}/EVAL/phases/kubernetes-config.js`);
+const tests = k8s.testKubernetesConfiguration(projectDir);
+const ingress = tests.find((entry) => entry.name === "Ingress configured");
+if (!ingress || ingress.status !== "skipped") {
+  process.exit(1);
+}
+NODE
+  then
+    fail "kubernetes-config.js did not treat missing ingress as optional"
+  fi
+
+  pass "kubernetes-config.js detects embedded Service and probe definitions"
+}
+
+run_angular_bootstrap_detection_smoke() {
+  local project_dir="$TMP_DIR/angular-bootstrap-smoke"
+  local frontend_dir="$project_dir/frontend"
+  mkdir -p "$frontend_dir/src/app"
+
+  cat > "$frontend_dir/angular.json" <<'EOF'
+{ "version": 1 }
+EOF
+  cat > "$frontend_dir/package.json" <<'EOF'
+{ "name": "frontend", "scripts": { "build": "ng build", "test": "ng test" }, "dependencies": { "@angular/core": "18.0.0" } }
+EOF
+  cat > "$frontend_dir/tsconfig.json" <<'EOF'
+{}
+EOF
+  cat > "$frontend_dir/src/main.ts" <<'EOF'
+import { bootstrapApplication } from '@angular/platform-browser';
+import { AppComponent } from './app/app.component';
+bootstrapApplication(AppComponent);
+EOF
+  cat > "$frontend_dir/src/app/app.component.ts" <<'EOF'
+export class AppComponent {}
+EOF
+
+  if ! node - <<'NODE' "$ROOT_DIR" "$project_dir"
+const root = process.argv[2];
+const projectDir = process.argv[3];
+const angular = require(`${root}/EVAL/cartridges/frontend/angular.js`);
+const tests = angular.testAngularStructure(projectDir);
+const routing = tests.find((entry) => entry.name === "Routing configured (Module or Routes)");
+if (!routing || routing.status !== "passed") {
+  process.exit(1);
+}
+NODE
+  then
+    fail "angular.js did not recognise bootstrapApplication-based standalone apps"
+  fi
+
+  pass "angular.js recognises bootstrapApplication-based standalone apps"
+}
+
+run_frontend_env_detection_smoke() {
+  local project_dir="$TMP_DIR/frontend-env-smoke"
+  local frontend_dir="$project_dir/frontend"
+  local backend_dir="$project_dir/backend"
+  mkdir -p "$frontend_dir/src/app" "$frontend_dir/src/assets" "$backend_dir/src/main/java/com/example/controller"
+
+  cat > "$frontend_dir/package.json" <<'EOF'
+{ "name": "frontend", "scripts": { "build": "ng build", "test": "ng test" }, "dependencies": { "@angular/core": "18.0.0" } }
+EOF
+  cat > "$frontend_dir/angular.json" <<'EOF'
+{ "version": 1 }
+EOF
+  cat > "$frontend_dir/src/main.ts" <<'EOF'
+console.log('bootstrap');
+EOF
+  cat > "$frontend_dir/src/app/app.component.ts" <<'EOF'
+export class AppComponent {}
+EOF
+  cat > "$frontend_dir/src/app/app.config.ts" <<'EOF'
+export const appConfig = {};
+EOF
+  cat > "$frontend_dir/src/assets/env.js" <<'EOF'
+window.__env = { apiUrl: '/api' };
+EOF
+  cat > "$frontend_dir/proxy.conf.json" <<'EOF'
+{ "/api": { "target": "http://localhost:8080" } }
+EOF
+  cat > "$frontend_dir/docker-compose.yml" <<'EOF'
+services:
+  frontend:
+    ports:
+      - "4200:4200"
+EOF
+  cat > "$backend_dir/src/main/java/com/example/controller/TodoController.java" <<'EOF'
+public class TodoController {}
+EOF
+  cat > "$frontend_dir/src/app/todo.service.ts" <<'EOF'
+export class TodoService {}
+EOF
+
+  if ! node - <<'NODE' "$ROOT_DIR" "$project_dir"
+const root = process.argv[2];
+const projectDir = process.argv[3];
+const evaluator = require(`${root}/EVAL/comprehensive-evaluator.js`);
+const result = evaluator.__testOnly.evaluateIntegration(projectDir);
+const envTest = result.tests.find((entry) => entry.name === "Frontend environment configuration");
+if (!envTest || envTest.status !== "passed") {
+  process.exit(1);
+}
+NODE
+  then
+    fail "comprehensive-evaluator.js did not recognise Angular runtime/proxy environment config"
+  fi
+
+  pass "comprehensive-evaluator.js recognises Angular runtime/proxy environment config"
+}
+
 run_e2e_build_failure_smoke() {
   local runner_dir="$TMP_DIR/e2e-build-fail"
   local helper_dir="$runner_dir/helpers"
@@ -582,6 +836,7 @@ run_cleanup_reset_smoke() {
   local cleanup_script_dir="$cleanup_root/scripts"
   local workspace_dir="$cleanup_root/WORKSPACE/opencode-glm-5.1/overview"
   local results_dir="$cleanup_root/RESULTS/opencode-glm-5.1/spring-boot-angular/overview"
+  local legacy_session_file="$cleanup_root/WORKSPACE/opencode-glm-5.1/overview.opencode-session-id"
   local dry_run_output="$TMP_DIR/cleanup-dry-run.txt"
 
   mkdir -p "$cleanup_script_dir" "$workspace_dir" "$results_dir"
@@ -590,6 +845,7 @@ run_cleanup_reset_smoke() {
 
   printf '%s\n' 'workspace-marker' > "$workspace_dir/workspace.txt"
   printf '%s\n' 'results-marker' > "$results_dir/results.txt"
+  printf '%s\n' 'legacy-session' > "$legacy_session_file"
 
   bash "$cleanup_script_dir/cleanup-benchmark.sh" \
     --model "GLM-5.1Z.AI" \
@@ -600,7 +856,7 @@ run_cleanup_reset_smoke() {
     --scope "all" \
     --dry-run > "$dry_run_output"
 
-  if [[ ! -f "$workspace_dir/workspace.txt" || ! -f "$results_dir/results.txt" ]]; then
+  if [[ ! -f "$workspace_dir/workspace.txt" || ! -f "$results_dir/results.txt" || ! -f "$legacy_session_file" ]]; then
     fail "cleanup dry-run removed files unexpectedly"
   fi
 
@@ -620,11 +876,11 @@ run_cleanup_reset_smoke() {
     --harness "opencode" \
     --scope "all" >/dev/null
 
-  if [[ -e "$workspace_dir" || -e "$results_dir" ]]; then
+  if [[ -e "$workspace_dir" || -e "$results_dir" || -e "$legacy_session_file" ]]; then
     fail "cleanup script did not remove the benchmark workspace and results"
   fi
 
-  pass "cleanup-benchmark.sh safely removes workspace and results paths"
+  pass "cleanup-benchmark.sh safely removes workspace, results, and legacy session paths"
 }
 
 run_eval_complete_e2e_failure_smoke() {
@@ -724,6 +980,68 @@ EOF
   pass "eval-complete.sh fails the benchmark when E2E health fails"
 }
 
+run_eval_generated_static_output_smoke() {
+  local eval_root="$TMP_DIR/eval-generated-static"
+  local script_dir="$eval_root/scripts"
+  local eval_dir="$eval_root/EVAL"
+  local project_dir="$eval_root/project"
+  local results_dir="$eval_root/results"
+
+  mkdir -p "$script_dir" "$eval_dir" "$project_dir" "$results_dir"
+  cp "$ROOT_DIR/scripts/eval-generated-project.sh" "$script_dir/eval-generated-project.sh"
+
+  cat > "$eval_dir/comprehensive-evaluator.js" <<EOF
+#!/usr/bin/env node
+const fs = require("fs");
+const args = process.argv.slice(2);
+let resultsFile = "";
+for (let i = 0; i < args.length; i += 1) {
+  if (args[i] === "--results-file") {
+    resultsFile = args[i + 1];
+    break;
+  }
+}
+fs.writeFileSync(resultsFile, JSON.stringify({
+  metadata: {
+    evaluation_version: "test",
+    timestamp: new Date().toISOString()
+  },
+  quality: {
+    overall_score: 77,
+    tier: "Deployable",
+    pass_rate: 1,
+    test_count: 1,
+    passed: 1,
+    failed: 0,
+    scores: {
+      code_quality: 77
+    }
+  }
+}, null, 2));
+EOF
+  chmod +x "$eval_dir/comprehensive-evaluator.js"
+  printf '%s\n' '# readme' > "$project_dir/README.md"
+
+  if ! "$script_dir/eval-generated-project.sh" \
+      --generated-dir "$project_dir" \
+      --results-dir "$results_dir" \
+      --backend "spring-boot" \
+      --frontend "angular" \
+      --quiet; then
+    fail "eval-generated-project.sh failed in static-only smoke test"
+  fi
+
+  if [[ ! -f "$results_dir/static-evaluation.json" ]]; then
+    fail "eval-generated-project.sh did not write static-evaluation.json"
+  fi
+
+  if [[ -f "$results_dir/evaluation-results.json" ]]; then
+    fail "eval-generated-project.sh should not write merged evaluation-results.json"
+  fi
+
+  pass "eval-generated-project.sh writes static-evaluation.json for static-only runs"
+}
+
 main() {
   run_generate_resume_smoke
   run_e2e_timeout_forwarding_smoke
@@ -733,10 +1051,15 @@ main() {
   run_health_requires_200_smoke
   run_health_waits_for_backend_port_smoke
   run_e2e_merger_schema_smoke
+  run_e2e_merger_tier_cap_smoke
+  run_embedded_k8s_service_detection_smoke
+  run_angular_bootstrap_detection_smoke
+  run_frontend_env_detection_smoke
   run_e2e_build_failure_smoke
   run_e2e_cleanup_on_health_failure_smoke
   run_cleanup_reset_smoke
   run_eval_complete_e2e_failure_smoke
+  run_eval_generated_static_output_smoke
   pass "All regression smoke checks passed"
 }
 

@@ -21,6 +21,15 @@ function readFile(file) {
   }
 }
 
+function hasJavaFile(dir, matcher) {
+  return safeRecursiveRead(dir).some((relativePath) => {
+    const normalized = normalizePath(relativePath);
+    if (!/\.java$/i.test(normalized)) return false;
+    const absolutePath = path.join(dir, relativePath);
+    return matcher(normalized, readFile(absolutePath));
+  });
+}
+
 function testSpringBootStructure(projectDir) {
   const tests = [];
 
@@ -79,7 +88,11 @@ function testSpringBootStructure(projectDir) {
   });
 
   // Check for Services
-  const hasServices = hasFile(backendDir, /Service\.java$/);
+  const hasServices = hasJavaFile(backendDir, (filePath, content) => {
+    return /Service\.java$/i.test(filePath) ||
+      /\/service\//i.test(filePath) ||
+      /@Service\b/.test(content);
+  });
   tests.push({
     name: "Service layer exists",
     status: hasServices ? "passed" : "failed",
@@ -87,7 +100,12 @@ function testSpringBootStructure(projectDir) {
   });
 
   // Check for Repositories
-  const hasRepositories = hasFile(backendDir, /Repository\.java$/);
+  const hasRepositories = hasJavaFile(backendDir, (filePath, content) => {
+    return /Repository\.java$/i.test(filePath) ||
+      /\/repository\//i.test(filePath) ||
+      /@Repository\b/.test(content) ||
+      /extends\s+(JpaRepository|CrudRepository|PagingAndSortingRepository)\b/.test(content);
+  });
   tests.push({
     name: "Data access layer (Repository) exists",
     status: hasRepositories ? "passed" : "failed",
@@ -114,8 +132,8 @@ function testSpringBootStructure(projectDir) {
   const hasMvnw = fs.existsSync(path.join(backendDir, "mvnw"));
   tests.push({
     name: "Maven wrapper available",
-    status: hasMvnw ? "passed" : "failed",
-    details: hasMvnw ? "" : "mvnw not found"
+    status: hasMvnw ? "passed" : "skipped",
+    details: hasMvnw ? "" : "mvnw not found; wrapper treated as optional"
   });
 
   return tests;

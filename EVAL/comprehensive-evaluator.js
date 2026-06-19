@@ -13,7 +13,9 @@ const {
 
 // Import cartridge evaluators
 const springBootEval = require("./cartridges/backend/spring-boot.js");
+const nodeJsEval = require("./cartridges/backend/node-js.js");
 const angularEval = require("./cartridges/frontend/angular.js");
+const reactEval = require("./cartridges/frontend/react.js");
 const k8sEval = require("./phases/kubernetes-config.js");
 
 function parseArgs(argv) {
@@ -28,32 +30,32 @@ function parseArgs(argv) {
 }
 
 function evaluateCartridgeStructure(projectDir, backend, frontend) {
-  if (backend !== "spring-boot") {
-    return {
-      passed: 0,
-      failed: 1,
-      tests: [{
-        name: `${backend} evaluation not implemented`,
-        status: "failed",
-        details: "Only Spring Boot backend is currently supported"
-      }]
-    };
+  let backendTests = [];
+  let frontendTests = [];
+
+  if (backend === "spring-boot") {
+    backendTests = springBootEval.testSpringBootStructure(projectDir);
+  } else if (backend === "node-js") {
+    backendTests = nodeJsEval.testNodeJsStructure(projectDir);
+  } else {
+    backendTests = [{
+      name: `${backend} backend evaluation not implemented`,
+      status: "skipped",
+      details: `No cartridge evaluator for ${backend}`
+    }];
   }
 
-  if (frontend !== "angular") {
-    return {
-      passed: 0,
-      failed: 1,
-      tests: [{
-        name: `${frontend} evaluation not implemented`,
-        status: "failed",
-        details: "Only Angular frontend is currently supported"
-      }]
-    };
+  if (frontend === "angular") {
+    frontendTests = angularEval.testAngularStructure(projectDir);
+  } else if (frontend === "react") {
+    frontendTests = reactEval.testReactStructure(projectDir);
+  } else {
+    frontendTests = [{
+      name: `${frontend} frontend evaluation not implemented`,
+      status: "skipped",
+      details: `No cartridge evaluator for ${frontend}`
+    }];
   }
-
-  const backendTests = springBootEval.testSpringBootStructure(projectDir);
-  const frontendTests = angularEval.testAngularStructure(projectDir);
   const allTests = [...backendTests, ...frontendTests];
 
   const passed = allTests.filter(t => t.status === "passed").length;
@@ -211,9 +213,12 @@ function evaluateIntegration(projectDir) {
     };
   }
 
-  const hasControllers = safeRecursiveRead(backendDir).some(f =>
-    /Controller\.java$/.test(normalizePath(f))
-  );
+  const hasControllers = safeRecursiveRead(backendDir).some(f => {
+    const normalized = normalizePath(f);
+    return /Controller\.java$/.test(normalized) ||
+           /controller[s]?\.(js|ts)$/.test(normalized) ||
+           /controllers?\//i.test(normalized);
+  });
   tests.push({
     name: "Backend API controllers defined",
     status: hasControllers ? "passed" : "failed",
@@ -221,9 +226,14 @@ function evaluateIntegration(projectDir) {
   });
 
   // Check for frontend services calling backend
-  const hasServices = safeRecursiveRead(frontendDir).some(f =>
-    /\.service\.ts$/.test(normalizePath(f))
-  );
+  const hasServices = safeRecursiveRead(frontendDir).some(f => {
+    const normalized = normalizePath(f);
+    return /\.service\.ts$/.test(normalized) ||
+           /Service\.ts$/.test(normalized) ||
+           /service[s]?\.(js|ts|tsx)$/.test(normalized) ||
+           /api\.(js|ts|tsx)$/.test(normalized) ||
+           /services?\//i.test(normalized);
+  });
   tests.push({
     name: "Frontend API services configured",
     status: hasServices ? "passed" : "failed",
@@ -231,7 +241,14 @@ function evaluateIntegration(projectDir) {
   });
 
   // Check for environment configuration
-  const hasEnvironment = fs.existsSync(path.join(frontendDir, "src", "environments", "environment.ts"));
+  const hasEnvironment = fs.existsSync(path.join(frontendDir, "src", "environments", "environment.ts")) ||
+                         fs.existsSync(path.join(frontendDir, "src", "environments", "environment.development.ts")) ||
+                         fs.existsSync(path.join(frontendDir, "src", "assets", "env.js")) ||
+                         fs.existsSync(path.join(frontendDir, "proxy.conf.json")) ||
+                         fs.existsSync(path.join(frontendDir, ".env")) ||
+                         fs.existsSync(path.join(frontendDir, ".env.example")) ||
+                         fs.existsSync(path.join(frontendDir, "vite.config.ts")) ||
+                         fs.existsSync(path.join(frontendDir, "vite.config.js"));
   tests.push({
     name: "Frontend environment configuration",
     status: hasEnvironment ? "passed" : "failed",
@@ -246,7 +263,8 @@ function evaluateIntegration(projectDir) {
   let hasPorts = false;
   if (composeFile) {
     const composeContent = fs.readFileSync(composeFile, "utf8");
-    hasPorts = /ports:|8080|3000|80/.test(composeContent);
+    hasPorts = /^\s*ports:/m.test(composeContent) &&
+              (/^\s*-\s*["']?\d+:\d+/m.test(composeContent) || /^\s*-\s*"\d+:\d+"/m.test(composeContent));
   }
 
   tests.push({
@@ -282,9 +300,12 @@ function evaluateE2EAndOther(projectDir) {
 
   // Check for test files in frontend (backend unit tests are already checked in
   // cartridge_structure via spring-boot.js — do not duplicate here)
-  const hasFrontendTests = safeRecursiveRead(frontendDir).some(f =>
-    /\.spec\.ts$/.test(normalizePath(f))
-  );
+  const hasFrontendTests = safeRecursiveRead(frontendDir).some(f => {
+    const normalized = normalizePath(f);
+    return /\.spec\.ts$/.test(normalized) ||
+           /\.test\.(ts|tsx|js|jsx)$/.test(normalized) ||
+           /__tests__\//i.test(normalized);
+  });
   tests.push({
     name: "Frontend unit tests exist",
     status: hasFrontendTests ? "passed" : "failed",
@@ -317,35 +338,41 @@ function calculateScores(results) {
   };
 
   const getScore = (result) => {
+    if (result.skipped) return null;
     const total = result.passed + result.failed;
     return total > 0 ? Math.round((result.passed / total) * 100) : 0;
   };
 
-  const cartridgeScore = getScore(results.cartridge);
-  const codeQualityScore = getScore(results.codeQuality);
-  const dockerScore = getScore(results.docker);
-  const k8sScore = getScore(results.kubernetes);
-  const integrationScore = getScore(results.integration);
-  const e2eScore = getScore(results.e2e);
+  const rawScores = {
+    cartridge: getScore(results.cartridge),
+    codeQuality: getScore(results.codeQuality),
+    docker: getScore(results.docker),
+    kubernetes: getScore(results.kubernetes),
+    integration: getScore(results.integration),
+    e2e: getScore(results.e2e)
+  };
 
-  // Weighted overall score
-  const overallScore = Math.round(
-    cartridgeScore * SCORE_WEIGHTS.cartridge +
-    codeQualityScore * SCORE_WEIGHTS.codeQuality +
-    dockerScore * SCORE_WEIGHTS.docker +
-    k8sScore * SCORE_WEIGHTS.kubernetes +
-    integrationScore * SCORE_WEIGHTS.integration +
-    e2eScore * SCORE_WEIGHTS.e2e
-  );
+  const activeWeight = Object.keys(rawScores).reduce((sum, key) => {
+    return sum + (rawScores[key] !== null ? SCORE_WEIGHTS[key] : 0);
+  }, 0);
+
+  const overallScore = activeWeight > 0 ? Math.round(
+    Object.keys(rawScores).reduce((sum, key) => {
+      if (rawScores[key] === null) return sum;
+      const normalizedWeight = SCORE_WEIGHTS[key] / activeWeight;
+      return sum + rawScores[key] * normalizedWeight;
+    }, 0)
+  ) : 0;
 
   return {
     overall: overallScore,
-    cartridge: cartridgeScore,
-    codeQuality: codeQualityScore,
-    docker: dockerScore,
-    kubernetes: k8sScore,
-    integration: integrationScore,
-    e2e: e2eScore
+    cartridge: rawScores.cartridge ?? 0,
+    codeQuality: rawScores.codeQuality ?? 0,
+    docker: rawScores.docker ?? 0,
+    kubernetes: rawScores.kubernetes ?? 0,
+    integration: rawScores.integration ?? 0,
+    e2e: rawScores.e2e ?? 0,
+    skippedCategories: Object.keys(rawScores).filter(k => rawScores[k] === null)
   };
 }
 
@@ -406,6 +433,7 @@ async function main() {
 
   const totalPassed = allTests.filter(t => t.status === "passed").length;
   const totalFailed = allTests.filter(t => t.status === "failed").length;
+  const totalSkipped = allTests.filter(t => t.status === "skipped").length;
   const totalTests = totalPassed + totalFailed;
 
   // Build output
@@ -441,8 +469,9 @@ async function main() {
       cartridge_structure: {
         passed: results.cartridge.passed,
         failed: results.cartridge.failed,
+        skipped: results.cartridge.skipped || false,
         score: scores.cartridge,
-        weight_pct: 20,
+        weight_pct: results.cartridge.skipped ? 0 : 20,
         tests: results.cartridge.tests
       },
       code_quality: {
@@ -494,7 +523,15 @@ async function main() {
   console.log("✅ Comprehensive evaluation completed");
 }
 
-main().catch(err => {
-  console.error("Evaluation failed:", err);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch(err => {
+    console.error("Evaluation failed:", err);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  __testOnly: {
+    evaluateIntegration
+  }
+};

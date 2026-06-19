@@ -79,8 +79,8 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --quiet)
-      QUIET="$2"
-      shift 2
+      QUIET="true"
+      shift
       ;;
     *)
       echo -e "${RED}Unknown option: $1${NC}"
@@ -133,7 +133,7 @@ if [ "$QUIET" != "true" ]; then
   echo ""
 fi
 
-RESULTS_FILE="$RESULTS_DIR/evaluation-results.json"
+RESULTS_FILE="$RESULTS_DIR/static-evaluation.json"
 mkdir -p "$RESULTS_DIR"
 
 # Run comprehensive evaluation
@@ -179,7 +179,7 @@ if node "$EVAL_SCRIPT" \
   if [ "$QUIET" != "true" ]; then
     echo ""
     echo -e "${GREEN}✅ Evaluation completed${NC}"
-    echo -e "${GREEN}   Results: ${RESULTS_FILE}${NC}"
+    echo -e "${GREEN}   Static Results: ${RESULTS_FILE}${NC}"
     echo ""
   fi
 

@@ -6,6 +6,9 @@ RESULTS/
 .claude/
 .mimocode/
 .remember/
+.env
+.env.*
+!.env.example
 
 # OS and editor noise
 .DS_Store

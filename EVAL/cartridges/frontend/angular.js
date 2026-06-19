@@ -87,7 +87,9 @@ function testAngularStructure(projectDir) {
   });
 
   // Check for main.ts
-  const hasMainTs = fs.existsSync(path.join(frontendDir, "src", "main.ts"));
+  const mainTsPath = path.join(frontendDir, "src", "main.ts");
+  const hasMainTs = fs.existsSync(mainTsPath);
+  const mainTsContent = hasMainTs ? readFile(mainTsPath) : "";
   tests.push({
     name: "main.ts bootstrap file exists",
     status: hasMainTs ? "passed" : "failed",
@@ -95,7 +97,7 @@ function testAngularStructure(projectDir) {
   });
 
   // Check for App Component
-  const hasAppComponent = hasFile(frontendDir, /app\.component\.(ts|tsx)$/);
+  const hasAppComponent = hasFile(frontendDir, /app(\.component)?\.(ts|tsx)$/);
   tests.push({
     name: "App component exists",
     status: hasAppComponent ? "passed" : "failed",
@@ -104,12 +106,14 @@ function testAngularStructure(projectDir) {
 
   // Check for Module or Standalone routing
   const hasModule = hasFile(frontendDir, /app\.module\.ts$/);
-  const hasRouting = hasFile(frontendDir, /app\.(routes|routing|config)\.ts$/);
-  const hasModuleOrRouting = hasModule || hasRouting;
+  const hasRouting = hasFile(frontendDir, /app\.(routes|routing)\.ts$/);
+  const hasStandaloneConfig = hasFile(frontendDir, /app\.config\.ts$/) && hasMainTs;
+  const hasBootstrapApplication = /bootstrapApplication\s*\(/.test(mainTsContent);
+  const hasModuleOrRouting = hasModule || hasRouting || hasStandaloneConfig || hasBootstrapApplication;
   tests.push({
     name: "Routing configured (Module or Routes)",
     status: hasModuleOrRouting ? "passed" : "failed",
-    details: hasModuleOrRouting ? "" : "No app.module.ts or app.routes.ts found"
+    details: hasModuleOrRouting ? "" : "No app.module.ts, app.routes.ts, app.config.ts, or bootstrapApplication setup found"
   });
 
   // Check for Services

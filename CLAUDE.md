@@ -6,13 +6,12 @@ This repository benchmarks full-stack project generation across tools, models, a
 
 ## Current Contract
 
-- Harness: OpenCode for all generation runs.
-- Validation model: Z.ai GLM (`GLM-5.1Z.AI`) with `z-ai` provider.
-- Benchmark matrix: OpenRouter with `kimi/2.6`, `minimax/1.5`, and `xiaomi/mimo-2.5`.
+- Harnesses: OpenCode, PI, mimo-code for generation runs. Claude, Codex, Kilo Code scaffolded.
+- Models: Z.ai GLM (`GLM-5.1Z.AI`), OpenRouter (`kimi/2.7`), mimo (`mimo-v2.5-pro`).
 - Spec levels: `overview` and `detailed` only.
 - Root workspace: shell-only orchestration, no root `package.json`.
-- Generated projects live in `WORKSPACE/opencode-<model-slug>/<level>/`.
-- Evaluation results live in `RESULTS/opencode-<model-slug>/<backend>-<frontend>/<level>/`:
+- Generated projects live in `WORKSPACE/<harness>-<model-slug>/<level>/`.
+- Evaluation results live in `RESULTS/<harness>-<model-slug>/<backend>-<frontend>/<level>/`:
   - `static-evaluation.json` - Static code analysis (structure, quality, configs)
   - `e2e-execution.json` - Runtime validation (build, docker, API, frontend)
   - `evaluation-results.json` - Merged metrics (70% static, 30% E2E when both available)
@@ -37,7 +36,9 @@ Use the generic scripts only:
 ./scripts/run-e2e-tests.sh            # E2E runtime testing (build, docker, API)
 ./scripts/eval-complete.sh            # Complete evaluation (static + E2E + merge)
 ./scripts/run-benchmark.sh            # Full benchmark execution
+./scripts/cleanup-benchmark.sh        # Remove workspace/results artifacts
 ./scripts/test-setup.sh               # Local smoke check
+./scripts/test-regressions.sh         # Regression smoke tests
 ```
 
 Repo-scoped Codex skills live in `.agents/skills/`. They are guidance for agents working on the benchmark project, not runtime workflow contracts. Do not route benchmark execution through a custom skill-loading harness.
@@ -49,7 +50,9 @@ Repo-scoped Codex skills live in `.agents/skills/`. They are guidance for agents
 - `run-e2e-tests.sh`: Runtime validation via `E2E_TESTS/e2e-runner.js` (20-40 min per project).
 - `eval-complete.sh`: Full pipeline (static → E2E → merge results) with unified metrics.
 - `run-benchmark.sh`: Orchestrates multi-model/level/stack benchmark runs.
+- `cleanup-benchmark.sh`: Safely removes generated workspace and result artifacts.
 - `test-setup.sh`: Local syntax and setup validation for all components.
+- `test-regressions.sh`: 12 regression smoke tests covering script contracts and evaluator logic.
 
 **Evaluation coverage**:
 - Static analysis: Spring Boot, Node.js backends; Angular, React frontends
