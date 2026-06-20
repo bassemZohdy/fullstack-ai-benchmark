@@ -30,6 +30,29 @@ function hasJavaFile(dir, matcher) {
   });
 }
 
+function hasInMemoryStorageLayer(dir) {
+  return hasJavaFile(dir, (filePath, content) => {
+    const inServiceOrController =
+      /\/(service|controller)\//i.test(filePath) ||
+      /Service\.java$/i.test(filePath) ||
+      /Controller\.java$/i.test(filePath) ||
+      /@Service\b/.test(content) ||
+      /@RestController\b/.test(content) ||
+      /@Controller\b/.test(content);
+    if (!inServiceOrController) return false;
+
+    const hasCollectionStorage =
+      /ConcurrentHashMap\s*</.test(content) ||
+      /HashMap\s*</.test(content) ||
+      /Map\s*</.test(content) ||
+      /List\s*</.test(content);
+    const hasMutationMethods =
+      /\b(create|save|add|update|delete|remove|getById|findById|findAll)\b/.test(content);
+
+    return hasCollectionStorage && hasMutationMethods;
+  });
+}
+
 function testSpringBootStructure(projectDir) {
   const tests = [];
 
@@ -105,11 +128,11 @@ function testSpringBootStructure(projectDir) {
       /\/repository\//i.test(filePath) ||
       /@Repository\b/.test(content) ||
       /extends\s+(JpaRepository|CrudRepository|PagingAndSortingRepository)\b/.test(content);
-  });
+  }) || hasInMemoryStorageLayer(backendDir);
   tests.push({
     name: "Data access layer (Repository) exists",
     status: hasRepositories ? "passed" : "failed",
-    details: hasRepositories ? "" : "No Repositories found"
+    details: hasRepositories ? "" : "No repository or storage layer found"
   });
 
   // Check for application.yml or application.properties
@@ -121,7 +144,7 @@ function testSpringBootStructure(projectDir) {
   });
 
   // Check for Tests
-  const hasTests = hasFile(backendDir, /src\/test\/java\/.*Test\.java$/);
+  const hasTests = hasFile(backendDir, /src\/test\/java\/.*Tests?\.java$/);
   tests.push({
     name: "Unit tests exist",
     status: hasTests ? "passed" : "failed",

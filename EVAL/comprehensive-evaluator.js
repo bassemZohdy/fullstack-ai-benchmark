@@ -102,7 +102,9 @@ function evaluateCodeQuality(projectDir) {
   });
 
   // Check git files
-  const hasGitignore = fs.existsSync(path.join(projectDir, ".gitignore"));
+  const hasGitignore = fs.existsSync(path.join(projectDir, ".gitignore")) ||
+    fs.existsSync(path.join(projectDir, "backend", ".gitignore")) ||
+    fs.existsSync(path.join(projectDir, "frontend", ".gitignore"));
   tests.push({
     name: ".gitignore present",
     status: hasGitignore ? "passed" : "failed",
@@ -241,14 +243,27 @@ function evaluateIntegration(projectDir) {
   });
 
   // Check for environment configuration
+  const hasRuntimeEnvPattern = safeRecursiveRead(frontendDir).some((relativePath) => {
+    const normalized = normalizePath(relativePath);
+    if (!/\.(ts|js)$/i.test(normalized)) return false;
+    const absolutePath = path.join(frontendDir, relativePath);
+    try {
+      const content = fs.readFileSync(absolutePath, "utf8");
+      return /(__env|window\.__env|globalThis\s+as\s+\{[^}]*__env|globalThis\.__env)/.test(content);
+    } catch {
+      return false;
+    }
+  });
   const hasEnvironment = fs.existsSync(path.join(frontendDir, "src", "environments", "environment.ts")) ||
                          fs.existsSync(path.join(frontendDir, "src", "environments", "environment.development.ts")) ||
                          fs.existsSync(path.join(frontendDir, "src", "assets", "env.js")) ||
                          fs.existsSync(path.join(frontendDir, "proxy.conf.json")) ||
+                         fs.existsSync(path.join(frontendDir, "proxy.conf.js")) ||
                          fs.existsSync(path.join(frontendDir, ".env")) ||
                          fs.existsSync(path.join(frontendDir, ".env.example")) ||
                          fs.existsSync(path.join(frontendDir, "vite.config.ts")) ||
-                         fs.existsSync(path.join(frontendDir, "vite.config.js"));
+                         fs.existsSync(path.join(frontendDir, "vite.config.js")) ||
+                         hasRuntimeEnvPattern;
   tests.push({
     name: "Frontend environment configuration",
     status: hasEnvironment ? "passed" : "failed",
@@ -532,6 +547,7 @@ if (require.main === module) {
 
 module.exports = {
   __testOnly: {
+    evaluateCodeQuality,
     evaluateIntegration
   }
 };

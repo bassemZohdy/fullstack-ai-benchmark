@@ -1,4 +1,6 @@
 const http = require("http");
+const fs = require("fs");
+const path = require("path");
 
 function makeRequest(host, port, path, timeout = 5000) {
   return new Promise((resolve) => {
@@ -52,13 +54,7 @@ async function test(projectDir, options = {}) {
   const timeout = options.timeout || 30000;
   const tests = [];
 
-  // Try common frontend ports
-  const ports = [
-    { port: 3000, name: "React/Node (port 3000)" },
-    { port: 4200, name: "Angular (port 4200)" },
-    { port: 80, name: "Nginx (port 80)" },
-    { port: 8080, name: "Nginx/Web (port 8080)" }
-  ];
+  const ports = getFrontendPorts(projectDir);
 
   let foundWorkingPort = null;
 
@@ -107,3 +103,62 @@ async function test(projectDir, options = {}) {
 }
 
 module.exports = { test };
+
+function getFrontendPorts(projectDir) {
+  const composePaths = [
+    path.join(projectDir, "docker-compose.yml"),
+    path.join(projectDir, "docker-compose.yaml")
+  ];
+
+  for (const composePath of composePaths) {
+    if (!fs.existsSync(composePath)) continue;
+
+    try {
+      const content = fs.readFileSync(composePath, "utf8");
+      const ports = [];
+      let inServices = false;
+      let currentService = null;
+
+      for (const rawLine of content.split(/\r?\n/)) {
+        const line = rawLine.trim();
+        if (!inServices && line === "services:") {
+          inServices = true;
+          continue;
+        }
+
+        if (!inServices) continue;
+
+        const serviceMatch = /^\s{2}([a-zA-Z0-9_-]+):\s*$/.exec(rawLine);
+        if (serviceMatch) {
+          currentService = serviceMatch[1];
+          continue;
+        }
+
+        const portMatch = /^-\s*["']?(\d+):(\d+)/.exec(line);
+        if (!portMatch || !currentService) continue;
+        if (!/frontend|web|ui/i.test(currentService)) continue;
+
+        const hostPort = Number(portMatch[1]);
+        if (Number.isFinite(hostPort)) {
+          ports.push(hostPort);
+        }
+      }
+
+      if (ports.length) {
+        return ports.map((port) => ({
+          port,
+          name: `Frontend port ${port}`
+        }));
+      }
+    } catch {
+      break;
+    }
+  }
+
+  return [
+    { port: 3000, name: "React/Node (port 3000)" },
+    { port: 4200, name: "Angular (port 4200)" },
+    { port: 80, name: "Nginx (port 80)" },
+    { port: 8080, name: "Nginx/Web (port 8080)" }
+  ];
+}

@@ -367,6 +367,78 @@ EOF
   pass "docker-runner.js waits for the backend port instead of any healthy port"
 }
 
+run_health_accepts_api_and_frontend_smoke() {
+  local project_dir="$TMP_DIR/health-api-and-frontend"
+  local compose_file="$project_dir/docker-compose.yml"
+  local backend_script="$TMP_DIR/backend-health-api.js"
+  local frontend_script="$TMP_DIR/frontend-health-root.js"
+  local backend_log="$TMP_DIR/backend-health-api.log"
+  local frontend_log="$TMP_DIR/frontend-health-root.log"
+  local frontend_pid=""
+
+  mkdir -p "$project_dir"
+  cat > "$compose_file" <<'EOF'
+services:
+  backend:
+    ports:
+      - "8080:8080"
+  frontend:
+    ports:
+      - "4200:4200"
+EOF
+
+  cat > "$backend_script" <<'EOF'
+const http = require("http");
+http.createServer((req, res) => {
+  if (req.url === "/api/todos") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end("[]");
+    return;
+  }
+  res.writeHead(404);
+  res.end("not found");
+}).listen(8080, "127.0.0.1");
+EOF
+
+  cat > "$frontend_script" <<'EOF'
+const http = require("http");
+http.createServer((req, res) => {
+  if (req.url === "/") {
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end("<html><body>ok</body></html>");
+    return;
+  }
+  res.writeHead(404);
+  res.end("not found");
+}).listen(4200, "127.0.0.1");
+EOF
+
+  node "$backend_script" > "$backend_log" 2>&1 &
+  API_SERVER_PID=$!
+  node "$frontend_script" > "$frontend_log" 2>&1 &
+  frontend_pid=$!
+
+  sleep 1
+
+  if ! node -e "const runner=require(process.argv[1]); runner.waitForHealth(process.argv[2], { timeout: 3000 }).then((r) => { if (!r.ready || !r.backend || !r.frontend) process.exit(1); }).catch((err) => { console.error(err); process.exit(1); });" "$ROOT_DIR/E2E_TESTS/helpers/docker-runner.js" "$project_dir"; then
+    fail "docker-runner.js did not accept API + frontend readiness without /health"
+  fi
+
+  if [[ -n "$frontend_pid" ]] && kill -0 "$frontend_pid" 2>/dev/null; then
+    kill "$frontend_pid" 2>/dev/null || true
+    wait "$frontend_pid" 2>/dev/null || true
+  fi
+  frontend_pid=""
+
+  if [[ -n "$API_SERVER_PID" ]] && kill -0 "$API_SERVER_PID" 2>/dev/null; then
+    kill "$API_SERVER_PID" 2>/dev/null || true
+    wait "$API_SERVER_PID" 2>/dev/null || true
+  fi
+  API_SERVER_PID=""
+
+  pass "docker-runner.js accepts backend API and frontend root readiness"
+}
+
 run_e2e_merger_schema_smoke() {
   local static_file="$TMP_DIR/static-results.json"
   local e2e_file="$TMP_DIR/e2e-results.json"
@@ -558,9 +630,7 @@ const k8s = require(`${root}/EVAL/phases/kubernetes-config.js`);
 const tests = k8s.testKubernetesConfiguration(projectDir);
   const required = [
   "Backend Service defined",
-  "Frontend Service defined",
-  "Backend health checks configured",
-  "Frontend health checks configured"
+  "Frontend Service defined"
 ];
 for (const name of required) {
   const test = tests.find((entry) => entry.name === name);
@@ -570,7 +640,7 @@ for (const name of required) {
 }
 NODE
   then
-    fail "kubernetes-config.js did not detect embedded Service/Probe manifests"
+    fail "kubernetes-config.js did not detect embedded Service manifests"
   fi
 
   if ! node - <<'NODE' "$ROOT_DIR" "$project_dir"
@@ -578,16 +648,22 @@ const root = process.argv[2];
 const projectDir = process.argv[3];
 const k8s = require(`${root}/EVAL/phases/kubernetes-config.js`);
 const tests = k8s.testKubernetesConfiguration(projectDir);
+for (const name of ["Backend health checks configured", "Frontend health checks configured"]) {
+  const test = tests.find((entry) => entry.name === name);
+  if (!test || !["passed", "skipped"].includes(test.status)) {
+    process.exit(1);
+  }
+}
 const ingress = tests.find((entry) => entry.name === "Ingress configured");
 if (!ingress || ingress.status !== "skipped") {
   process.exit(1);
 }
 NODE
   then
-    fail "kubernetes-config.js did not treat missing ingress as optional"
+    fail "kubernetes-config.js did not keep optional Kubernetes checks optional"
   fi
 
-  pass "kubernetes-config.js detects embedded Service and probe definitions"
+  pass "kubernetes-config.js detects embedded Service manifests and keeps optional checks optional"
 }
 
 run_angular_bootstrap_detection_smoke() {
@@ -628,6 +704,56 @@ NODE
   fi
 
   pass "angular.js recognises bootstrapApplication-based standalone apps"
+}
+
+run_angular_app_ts_component_detection_smoke() {
+  local project_dir="$TMP_DIR/angular-app-ts"
+  local frontend_dir="$project_dir/frontend"
+  mkdir -p "$frontend_dir/src/app"
+
+  cat > "$frontend_dir/package.json" <<'EOF'
+{ "name": "frontend", "scripts": { "build": "ng build", "test": "ng test" }, "dependencies": { "@angular/core": "18.0.0", "@angular/platform-browser": "18.0.0" } }
+EOF
+  cat > "$frontend_dir/angular.json" <<'EOF'
+{ "version": 1 }
+EOF
+  cat > "$frontend_dir/tsconfig.json" <<'EOF'
+{ "compilerOptions": {} }
+EOF
+  cat > "$frontend_dir/src/main.ts" <<'EOF'
+import { bootstrapApplication } from '@angular/platform-browser';
+bootstrapApplication({});
+EOF
+  cat > "$frontend_dir/src/app/app.ts" <<'EOF'
+import { Component } from '@angular/core';
+@Component({ selector: 'app-root', template: '' })
+export class App {}
+EOF
+  cat > "$frontend_dir/src/app/app.routes.ts" <<'EOF'
+export const routes = [];
+EOF
+  cat > "$frontend_dir/src/app/app.spec.ts" <<'EOF'
+describe('App', () => {});
+EOF
+
+  if ! node - <<'NODE' "$ROOT_DIR" "$project_dir"
+const root = process.argv[2];
+const projectDir = process.argv[3];
+const angular = require(`${root}/EVAL/cartridges/frontend/angular.js`);
+const tests = angular.testAngularStructure(projectDir);
+const required = ["App component exists", "Components exist", "Test files exist"];
+for (const name of required) {
+  const test = tests.find((entry) => entry.name === name);
+  if (!test || test.status !== "passed") {
+    process.exit(1);
+  }
+}
+NODE
+  then
+    fail "angular.js did not recognise app.ts standalone component layouts"
+  fi
+
+  pass "angular.js recognises app.ts standalone component layouts"
 }
 
 run_frontend_env_detection_smoke() {
@@ -685,6 +811,180 @@ NODE
   fi
 
   pass "comprehensive-evaluator.js recognises Angular runtime/proxy environment config"
+}
+
+run_frontend_runtime_env_pattern_smoke() {
+  local project_dir="$TMP_DIR/frontend-runtime-env"
+  local frontend_dir="$project_dir/frontend"
+  local backend_dir="$project_dir/backend"
+  mkdir -p "$frontend_dir/src/app" "$backend_dir/src/main/java/com/example/controller"
+
+  cat > "$frontend_dir/package.json" <<'EOF'
+{ "name": "frontend", "scripts": { "build": "ng build", "test": "ng test" }, "dependencies": { "@angular/core": "18.0.0" } }
+EOF
+  cat > "$frontend_dir/angular.json" <<'EOF'
+{ "version": 1 }
+EOF
+  cat > "$frontend_dir/src/main.ts" <<'EOF'
+console.log('bootstrap');
+EOF
+  cat > "$frontend_dir/src/app/app.component.ts" <<'EOF'
+export class AppComponent {}
+EOF
+  cat > "$frontend_dir/src/app/app.config.ts" <<'EOF'
+export const appConfig = {};
+EOF
+  cat > "$frontend_dir/src/app/todo.service.ts" <<'EOF'
+const apiUrl = ((globalThis).__env?.apiUrl ?? 'http://localhost:8080/api') + '/todos';
+export class TodoService { constructor() { console.log(apiUrl); } }
+EOF
+  cat > "$frontend_dir/docker-compose.yml" <<'EOF'
+services:
+  frontend:
+    ports:
+      - "4200:4200"
+EOF
+  cat > "$backend_dir/src/main/java/com/example/controller/TodoController.java" <<'EOF'
+public class TodoController {}
+EOF
+
+  if ! node - <<'NODE' "$ROOT_DIR" "$project_dir"
+const root = process.argv[2];
+const projectDir = process.argv[3];
+const evaluator = require(`${root}/EVAL/comprehensive-evaluator.js`);
+const result = evaluator.__testOnly.evaluateIntegration(projectDir);
+const envTest = result.tests.find((entry) => entry.name === "Frontend environment configuration");
+if (!envTest || envTest.status !== "passed") {
+  process.exit(1);
+}
+NODE
+  then
+    fail "comprehensive-evaluator.js did not recognise __env runtime configuration"
+  fi
+
+  pass "comprehensive-evaluator.js recognises __env runtime configuration"
+}
+
+run_frontend_tester_compose_port_smoke() {
+  local project_dir="$TMP_DIR/frontend-tester-port"
+  local compose_file="$project_dir/docker-compose.yml"
+  local server_script="$TMP_DIR/frontend-tester-port.js"
+  local server_log="$TMP_DIR/frontend-tester-port.log"
+
+  mkdir -p "$project_dir"
+  cat > "$compose_file" <<'EOF'
+services:
+  frontend:
+    ports:
+      - "4200:4200"
+EOF
+
+  cat > "$server_script" <<'EOF'
+const http = require("http");
+http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/html" });
+  res.end("<html><body>ok</body></html>");
+}).listen(4200, "127.0.0.1");
+EOF
+
+  node "$server_script" > "$server_log" 2>&1 &
+  API_SERVER_PID=$!
+
+  sleep 1
+
+  if ! node -e "const tester=require(process.argv[1]); tester.test(process.argv[2]).then((r) => { if (!r.accessible || r.tests.some((t) => /3000|80|8080/.test(t.name))) process.exit(1); }).catch((err) => { console.error(err); process.exit(1); });" "$ROOT_DIR/E2E_TESTS/helpers/frontend-tester.js" "$project_dir"; then
+    fail "frontend-tester.js did not scope checks to compose frontend ports"
+  fi
+
+  if [[ -n "$API_SERVER_PID" ]] && kill -0 "$API_SERVER_PID" 2>/dev/null; then
+    kill "$API_SERVER_PID" 2>/dev/null || true
+    wait "$API_SERVER_PID" 2>/dev/null || true
+  fi
+  API_SERVER_PID=""
+
+  pass "frontend-tester.js scopes checks to compose frontend ports"
+}
+
+run_gitignore_detection_smoke() {
+  local project_dir="$TMP_DIR/gitignore-smoke"
+  mkdir -p "$project_dir/backend" "$project_dir/frontend"
+
+  printf '%s\n' 'target/' > "$project_dir/backend/.gitignore"
+  printf '%s\n' 'node_modules/' > "$project_dir/frontend/.gitignore"
+  printf '%s\n' '# readme' > "$project_dir/README.md"
+  printf '%s\n' 'KEY=value' > "$project_dir/.env.example"
+  printf '%s\n' 'services: {}' > "$project_dir/docker-compose.yml"
+  printf '%s\n' 'FROM scratch' > "$project_dir/backend/Dockerfile"
+  printf '%s\n' 'FROM scratch' > "$project_dir/frontend/Dockerfile"
+
+  if ! node - <<'NODE' "$ROOT_DIR" "$project_dir"
+const root = process.argv[2];
+const projectDir = process.argv[3];
+const evaluator = require(`${root}/EVAL/comprehensive-evaluator.js`);
+const result = evaluator.__testOnly.evaluateCodeQuality(projectDir);
+const gitignore = result.tests.find((entry) => entry.name === ".gitignore present");
+if (!gitignore || gitignore.status !== "passed") {
+  process.exit(1);
+}
+NODE
+  then
+    fail "comprehensive-evaluator.js did not accept backend/frontend .gitignore files"
+  fi
+
+  pass "comprehensive-evaluator.js accepts backend/frontend .gitignore files"
+}
+
+run_spring_tests_and_storage_detection_smoke() {
+  local project_dir="$TMP_DIR/spring-storage-smoke"
+  local backend_dir="$project_dir/backend"
+  mkdir -p "$backend_dir/src/main/java/com/example/todo/service" \
+           "$backend_dir/src/main/java/com/example/todo/controller" \
+           "$backend_dir/src/main/resources" \
+           "$backend_dir/src/test/java/com/example/todo"
+
+  cat > "$backend_dir/pom.xml" <<'EOF'
+<project><dependencies><dependency><artifactId>spring-boot-starter-web</artifactId></dependency></dependencies></project>
+EOF
+  cat > "$backend_dir/src/main/java/com/example/todo/TodoApplication.java" <<'EOF'
+public class TodoApplication {}
+EOF
+  cat > "$backend_dir/src/main/java/com/example/todo/controller/TodoController.java" <<'EOF'
+public class TodoController {}
+EOF
+  cat > "$backend_dir/src/main/java/com/example/todo/service/TodoService.java" <<'EOF'
+import java.util.ArrayList;
+import java.util.List;
+public class TodoService {
+  private final List<String> todos = new ArrayList<>();
+  public List<String> findAll() { return todos; }
+  public void create(String value) { todos.add(value); }
+  public void delete(String value) { todos.remove(value); }
+}
+EOF
+  cat > "$backend_dir/src/main/resources/application.properties" <<'EOF'
+app.name=todo
+EOF
+  cat > "$backend_dir/src/test/java/com/example/todo/TodoApplicationTests.java" <<'EOF'
+public class TodoApplicationTests {}
+EOF
+
+  if ! node - <<'NODE' "$ROOT_DIR" "$project_dir"
+const root = process.argv[2];
+const projectDir = process.argv[3];
+const spring = require(`${root}/EVAL/cartridges/backend/spring-boot.js`);
+const tests = spring.testSpringBootStructure(projectDir);
+for (const name of ["Data access layer (Repository) exists", "Unit tests exist"]) {
+  const test = tests.find((entry) => entry.name === name);
+  if (!test || test.status !== "passed") {
+    process.exit(1);
+  }
+}
+NODE
+  then
+    fail "spring-boot.js did not recognise in-memory storage or *Tests.java files"
+  fi
+
+  pass "spring-boot.js recognises in-memory storage and *Tests.java files"
 }
 
 run_e2e_build_failure_smoke() {
@@ -1050,11 +1350,17 @@ main() {
   run_api_todo_missing_id_smoke
   run_health_requires_200_smoke
   run_health_waits_for_backend_port_smoke
+  run_health_accepts_api_and_frontend_smoke
   run_e2e_merger_schema_smoke
   run_e2e_merger_tier_cap_smoke
   run_embedded_k8s_service_detection_smoke
   run_angular_bootstrap_detection_smoke
+  run_angular_app_ts_component_detection_smoke
   run_frontend_env_detection_smoke
+  run_frontend_runtime_env_pattern_smoke
+  run_frontend_tester_compose_port_smoke
+  run_gitignore_detection_smoke
+  run_spring_tests_and_storage_detection_smoke
   run_e2e_build_failure_smoke
   run_e2e_cleanup_on_health_failure_smoke
   run_cleanup_reset_smoke

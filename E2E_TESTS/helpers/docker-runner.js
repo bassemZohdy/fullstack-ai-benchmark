@@ -59,7 +59,7 @@ async function startup(projectDir, options = {}) {
 function probePort(port, timeout = 1000) {
   return new Promise((resolve) => {
     const req = http.request(
-      { host: "localhost", port, path: "/health", method: "GET" },
+      { host: "localhost", port, path: "/", method: "GET" },
       (res) => {
         res.resume();
         resolve({
@@ -84,19 +84,135 @@ function probePort(port, timeout = 1000) {
   });
 }
 
+function extractPublishedPorts(projectDir) {
+  const composePath = checkDockerCompose(projectDir);
+  if (!composePath) {
+    return { backend: [8080], frontend: [4200, 80] };
+  }
+
+  try {
+    const content = fs.readFileSync(composePath, "utf8");
+    const backendPorts = [];
+    const frontendPorts = [];
+    let currentService = null;
+    let inServices = false;
+
+    for (const rawLine of content.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!inServices && line === "services:") {
+        inServices = true;
+        continue;
+      }
+
+      if (!inServices) continue;
+      if (/^[A-Za-z0-9_-]+:\s*$/.test(line) && !/^(backend|frontend|api|web|ui):\s*$/.test(line)) {
+        continue;
+      }
+
+      const serviceMatch = /^\s{2}([a-zA-Z0-9_-]+):\s*$/.exec(rawLine);
+      if (serviceMatch) {
+        currentService = serviceMatch[1];
+        continue;
+      }
+
+      const portMatch = /^-\s*["']?(\d+):(\d+)/.exec(line);
+      if (!portMatch || !currentService) continue;
+
+      const hostPort = Number(portMatch[1]);
+      if (!Number.isFinite(hostPort)) continue;
+
+      if (/backend|api/i.test(currentService)) {
+        backendPorts.push(hostPort);
+      } else if (/frontend|web|ui/i.test(currentService)) {
+        frontendPorts.push(hostPort);
+      }
+    }
+
+    return {
+      backend: backendPorts.length ? backendPorts : [8080],
+      frontend: frontendPorts.length ? frontendPorts : [4200, 80]
+    };
+  } catch {
+    return { backend: [8080], frontend: [4200, 80] };
+  }
+}
+
+function probePath(port, requestPath, timeout = 1000) {
+  return new Promise((resolve) => {
+    const req = http.request(
+      { host: "localhost", port, path: requestPath, method: "GET" },
+      (res) => {
+        res.resume();
+        resolve({
+          open: true,
+          statusCode: res.statusCode,
+          path: requestPath
+        });
+      }
+    );
+
+    req.on("error", () => {
+      resolve({
+        open: false,
+        statusCode: null,
+        path: requestPath
+      });
+    });
+
+    req.setTimeout(timeout, () => {
+      req.destroy(new Error("Request timeout"));
+    });
+
+    req.end();
+  });
+}
+
+async function probeAny(port, paths, timeout = 1000) {
+  for (const requestPath of paths) {
+    const probe = await probePath(port, requestPath, timeout);
+    if (probe.open && probe.statusCode >= 200 && probe.statusCode < 400) {
+      return probe;
+    }
+  }
+
+  return { open: false, statusCode: null, path: null };
+}
+
 async function waitForHealth(projectDir, options = {}) {
   const timeout = options.timeout || 120000;
   const port = options.port || Number(process.env.BENCHMARK_API_PORT || 8080);
+  const ports = extractPublishedPorts(projectDir);
+  const backendPorts = [port, ...ports.backend.filter((value) => value !== port)];
+  const frontendPorts = ports.frontend;
   const startTime = Date.now();
+  const backendPaths = ["/actuator/health", "/health", "/api/todos"];
+  const frontendPaths = ["/"];
 
   while (Date.now() - startTime <= timeout) {
-    const probe = await probePort(port);
-    if (probe.open && probe.statusCode >= 200 && probe.statusCode < 300) {
+    let backendProbe = null;
+    for (const backendPort of backendPorts) {
+      const probe = await probeAny(backendPort, backendPaths);
+      if (probe.open) {
+        backendProbe = { ...probe, port: backendPort };
+        break;
+      }
+    }
+
+    let frontendProbe = null;
+    for (const frontendPort of frontendPorts) {
+      const probe = await probeAny(frontendPort, frontendPaths);
+      if (probe.open) {
+        frontendProbe = { ...probe, port: frontendPort };
+        break;
+      }
+    }
+
+    if (backendProbe && frontendProbe) {
       return {
         ready: true,
         duration: Date.now() - startTime,
-        port,
-        statusCode: probe.statusCode
+        backend: backendProbe,
+        frontend: frontendProbe
       };
     }
 

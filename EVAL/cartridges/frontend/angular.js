@@ -21,6 +21,10 @@ function readFile(file) {
   }
 }
 
+function hasComponentDecorator(file) {
+  return /@Component\s*\(/.test(readFile(file));
+}
+
 function testAngularStructure(projectDir) {
   const tests = [];
 
@@ -97,11 +101,15 @@ function testAngularStructure(projectDir) {
   });
 
   // Check for App Component
-  const hasAppComponent = hasFile(frontendDir, /app(\.component)?\.(ts|tsx)$/);
+  const hasAppComponent = safeRecursiveRead(frontendDir).some((relativePath) => {
+    const normalized = normalizePath(relativePath);
+    if (!/src\/app\/app(\.component)?\.ts$/i.test(normalized)) return false;
+    return hasComponentDecorator(path.join(frontendDir, relativePath));
+  });
   tests.push({
     name: "App component exists",
     status: hasAppComponent ? "passed" : "failed",
-    details: hasAppComponent ? "" : "app.component.ts not found"
+    details: hasAppComponent ? "" : "No Angular app root component found"
   });
 
   // Check for Module or Standalone routing
@@ -125,7 +133,11 @@ function testAngularStructure(projectDir) {
   });
 
   // Check for Components
-  const hasComponents = hasFile(frontendDir, /\.component\.ts$/);
+  const hasComponents = safeRecursiveRead(frontendDir).some((relativePath) => {
+    const normalized = normalizePath(relativePath);
+    if (!/src\/app\/.*\.ts$/i.test(normalized)) return false;
+    return hasComponentDecorator(path.join(frontendDir, relativePath));
+  });
   tests.push({
     name: "Components exist",
     status: hasComponents ? "passed" : "failed",

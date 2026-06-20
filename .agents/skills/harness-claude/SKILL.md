@@ -114,4 +114,4 @@ export ANTHROPIC_API_KEY=<key>
 
 ## Helper
 
-`.agents/skills/harness-claude/helpers/invoke.sh` — stub. Replace with real implementation once gaps above are resolved.
+No separate helper script is retained. The benchmark integration lives in `scripts/generate-project.sh`.

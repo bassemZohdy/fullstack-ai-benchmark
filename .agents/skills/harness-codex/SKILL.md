@@ -112,4 +112,4 @@ export OPENAI_API_KEY=<key>
 
 ## Helper
 
-`.agents/skills/harness-codex/helpers/invoke.sh` — stub. Replace once gaps are resolved.
+No separate helper script is retained. The benchmark integration lives in `scripts/generate-project.sh`.
