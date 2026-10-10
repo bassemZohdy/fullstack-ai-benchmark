@@ -1,0 +1,5 @@
+[
+  {"path":"core/src/main/java/fixture/Ledger.java","class":"Ledger","package":"fixture","public_methods":["divide","total"]},
+  {"path":"service/src/main/java/fixture/TaxService.java","class":"TaxService","package":"fixture","public_methods":["tax"]},
+  {"path":"service/src/main/java/fixture/StatusService.java","class":"StatusService","package":"fixture","public_methods":["status"]}
+]
