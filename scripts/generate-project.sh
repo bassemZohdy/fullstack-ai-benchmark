@@ -337,8 +337,12 @@ if ! benchmark_require_value "harness" "$HARNESS" "${BENCHMARK_HARNESSES[@]}"; t
   exit 1
 fi
 
-# Resolve harness CLI early (needed for all paths)
-HARNESS_CLI="$(resolve_harness_cli "$HARNESS")"
+# A dry run renders the command without needing a locally installed model CLI.
+if [ "$DRY_RUN" == "true" ]; then
+  HARNESS_CLI="$HARNESS"
+else
+  HARNESS_CLI="$(resolve_harness_cli "$HARNESS" || true)"
+fi
 
 if ! benchmark_require_value "provider" "$PROVIDER" "${BENCHMARK_PROVIDERS[@]}"; then
   echo -e "${RED}❌ ERROR: Invalid provider: $PROVIDER${NC}"
