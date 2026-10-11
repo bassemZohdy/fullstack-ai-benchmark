@@ -18,6 +18,8 @@ For a previously populated Maven repository, add `--offline` and optionally
 workspace, runs the hand-written tests, and changes `first + second` to `first - second`.
 The mutation is accepted as killed only by a test assertion failure, not a compiler error.
 It never invokes a model. Dependencies may be downloaded on the first build.
+Compilation and test execution have separate exit results. A fresh mutation tree
+prevents a failed invocation from reusing earlier passing reports.
 
 ## Evidence boundaries
 
@@ -27,6 +29,27 @@ the fixture/evidence harness. They do not measure an engine's generated test qua
 Engine-generated compilation, execution, mutation usefulness, repair rate, provider
 cost and generation latency must remain `null` until those engine runs exist.
 The adapter startup time is not a model latency benchmark.
+
+For generation comparisons, record the engine revision, installed model identifier
+and quantization, runtime, corpus hashes, full input/output traces, context/output
+token limits, request timeouts, total call budget and the native repair budget.
+Use the same original production sources and dependencies for every engine. Run
+requests sequentially when sharing a local model server; queue time and interrupted
+attempts cannot establish comparative engine quality or latency. Preserve failed
+attempts. A length/context stop or time limit is incomplete evidence, not proof of
+inferior generation quality or grounds for retirement.
+
+Invoke each actual workflow through generation, normalization, review and its native
+bounded repairs. Disclose transport substitutions, disabled retrieval, platform
+constraints and engines that return templates without a native file-writing or
+compile-repair stage. Hand-materialized or hand-repaired candidates must be reported
+separately from native workflow acceptance. Model review success is not compilation.
+Compile and execute the actual generated candidate in a fresh workspace and use
+separate process exits plus current nonzero Surefire reports and assertion-bearing
+sources. The evidence helper fails closed without test-process and assertion evidence.
+Only an independently accepted baseline can enter mutation evaluation; a mutation
+must compile and then fail an assertion to count as killed. Unrun mutation metrics
+remain null. Private engine prompts and results stay outside this public repository.
 
 Each engine's offline metadata adapter must read the same three production sources
 and emit an array of `{class, package, public_methods, error}` records in the order
