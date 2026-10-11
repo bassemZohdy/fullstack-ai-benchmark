@@ -1,6 +1,7 @@
 """Run hand-authored fixture tests and a known mutation, without invoking any model."""
 import argparse
 import json
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -13,24 +14,37 @@ def run_controls(repository=None, offline=False):
         project = Path(directory) / 'corpus'
         shutil.copytree(Path(__file__).parent / 'corpus', project,
                         ignore=shutil.ignore_patterns('target'))
-        args = [shutil.which('mvn') or 'mvn', '-B', '-ntp', 'test']
+        args = [shutil.which('mvn') or 'mvn', '-B', '-ntp']
         if repository:
             args.append('-Dmaven.repo.local=' + str(Path(repository).resolve()))
         if offline:
             args.append('-o')
-        baseline = subprocess.run(args, cwd=project, capture_output=True, text=True, timeout=180)
-        evidence = execution_evidence(project, compile_exit=baseline.returncode)
-        source = project / 'core/src/main/java/fixture/Ledger.java'
+        assertion_sources = '\n'.join(path.read_text() for path in project.glob('*/src/test/java/**/*.java'))
+        assertions = bool(re.search(r'\bassert\w+\s*\(', assertion_sources))
+        compilation = subprocess.run(args+['test-compile'], cwd=project, capture_output=True, text=True, timeout=180)
+        baseline = subprocess.run(args+['test'], cwd=project, capture_output=True, text=True, timeout=180)
+        evidence = execution_evidence(project, compile_exit=compilation.returncode,
+                                      test_exit=baseline.returncode, assertions_present=assertions)
+        # A fresh mutant tree prevents earlier passing reports from being reused.
+        mutant = Path(directory) / 'mutant'
+        shutil.copytree(Path(__file__).parent / 'corpus', mutant,
+                        ignore=shutil.ignore_patterns('target'))
+        source = mutant / 'core/src/main/java/fixture/Ledger.java'
         source.write_text(source.read_text().replace('first + second', 'first - second'), encoding='utf-8')
-        mutation = subprocess.run(args, cwd=project, capture_output=True, text=True, timeout=180)
-        mutation_evidence = execution_evidence(project, compile_exit=mutation.returncode)
-        killed = mutation.returncode != 0 and mutation_evidence['failures'] > 0 and mutation_evidence['errors'] == 0
+        mutation_compile = subprocess.run(args+['test-compile'], cwd=mutant, capture_output=True, text=True, timeout=180)
+        mutation = subprocess.run(args+['test'], cwd=mutant, capture_output=True, text=True, timeout=180)
+        mutation_evidence = execution_evidence(mutant, compile_exit=mutation_compile.returncode,
+                                               test_exit=mutation.returncode, assertions_present=assertions)
+        killed = (mutation_evidence['compiled'] and mutation.returncode != 0
+                  and mutation_evidence['executed_tests'] > 0 and mutation_evidence['failures'] > 0
+                  and mutation_evidence['errors'] == 0 and mutation_evidence['skipped'] == 0)
         if not evidence['accepted']:
             raise RuntimeError('Control baseline failed:\n' + baseline.stdout[-4000:] + baseline.stderr[-1000:])
         if not killed:
             raise RuntimeError('Known arithmetic mutation was not killed by an assertion')
         return dict(kind='hand-authored-harness-control', model_calls=0, provider_cost=0,
                     baseline=evidence, known_mutations=1, killed_mutations=1,
+                    mutation=mutation_evidence,
                     engine_generated_compile_rate=None, engine_generated_mutation_score=None)
 
 
